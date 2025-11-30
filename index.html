@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>今日你打飞机了吗 - WWII Air Combat</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1>⚔️ 今日你打飞机了吗 ⚔️</h1>
+            <div class="stats">
+                <div class="stat">
+                    <span class="label">得分:</span>
+                    <span id="score">0</span>
+                </div>
+                <div class="stat">
+                    <span class="label">生命:</span>
+                    <span id="lives">❤️❤️❤️</span>
+                </div>
+                <div class="stat">
+                    <span class="label">击杀:</span>
+                    <span id="kills">0</span>
+                </div>
+                <div class="stat">
+                    <span class="label">难度:</span>
+                    <span id="difficulty">1</span>
+                </div>
+                <div class="stat" id="skillStat">
+                    <span class="label">⚡技能:</span>
+                    <span id="skillCooldown" class="skill-ready">就绪</span>
+                </div>
+            </div>
+        </div>
+        
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="gameOver" class="game-over hidden">
+            <h2>游戏结束</h2>
+            <p>最终得分: <span id="finalScore">0</span></p>
+            <p>击杀敌机: <span id="finalKills">0</span></p>
+            <button id="restartBtn">重新开始</button>
+        </div>
+        
+        <div id="startScreen" class="start-screen">
+            <h2>🛩️ 今日你打飞机了吗 🛩️</h2>
+            <p class="desktop-controls">使用 WASD 或 方向键 移动</p>
+            <p class="desktop-controls">按 空格键 或 J键 发射子弹</p>
+            <p class="desktop-controls">按 I键 蓄力炮（1.5秒）⚡</p>
+            <p class="desktop-controls">按 K键 释放闪电清屏技能 ⚡</p>
+            <p class="mobile-controls" style="display: none;">触摸屏幕移动飞机</p>
+            <p class="mobile-controls" style="display: none;">自动发射子弹</p>
+            <p class="mobile-controls" style="display: none;">快速3连击触发蓄力炮💥</p>
+            <p>消灭敌军战斗机！</p>
+            <button id="startBtn">开始游戏</button>
+        </div>
+        
+        <div class="controls-hint">
+            <p>🎮 控制: WASD/方向键移动 | 空格/J键射击 | I键蓄力炮 | K键闪电技能 | M键静音</p>
+        </div>
+    </div>
+    
+    <!-- 移动端技能按钮 -->
+    <button id="mobileSkillBtn" class="mobile-skill-btn hidden">
+        <span class="skill-icon">⚡</span>
+        <span class="skill-text">清屏</span>
+        <span class="skill-cooldown-text"></span>
+    </button>
+    
+    <script src="audio.js"></script>
+    <script src="bullet.js"></script>
+    <script src="powerup.js"></script>
+    <script src="player.js"></script>
+    <script src="enemy.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "ww2-plane-shooter",
+  "version": "1.0.0",
+  "description": "Classic WWII plane shooter game",
+  "scripts": {
+    "start": "python3 -m http.server 8000"
+  }
+}

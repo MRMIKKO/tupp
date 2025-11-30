@@ -1,0 +1,521 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    color: #fff;
+    overflow: hidden;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    width: 100%;
+    max-width: 100vw;
+}
+
+.header {
+    text-align: center;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    width: 100%;
+    max-width: 800px;
+}
+
+.header h1 {
+    font-size: 1.8em;
+    margin-bottom: 5px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.stats {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    align-items: center;
+    font-size: 1em;
+    flex-wrap: nowrap; /* 不换行 */
+    padding: 0 7px; /* 左右边距 */
+}
+
+.stat {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    white-space: nowrap; /* 防止文本换行 */
+}
+
+.label {
+    font-weight: bold;
+    color: #ffd700;
+    white-space: nowrap; /* 防止标签换行 */
+}
+
+.skill-ready {
+    color: #00FF00;
+    font-weight: bold;
+    text-shadow: 0 0 5px #00FF00;
+}
+
+.skill-cooldown {
+    color: #FF6666;
+    font-weight: bold;
+}
+
+#skillStat {
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+#gameCanvas {
+    border: 3px solid #ffd700;
+    border-radius: 10px;
+    background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    cursor: crosshair;
+    touch-action: none;
+    max-width: 100%;
+    height: auto;
+}
+
+.game-over {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.95);
+    padding: 40px 60px;
+    border-radius: 15px;
+    border: 3px solid #ff4444;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+}
+
+.game-over h2 {
+    font-size: 3em;
+    color: #ff4444;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 8px rgba(255, 68, 68, 0.5);
+}
+
+.game-over p {
+    font-size: 1.5em;
+    margin: 10px 0;
+}
+
+.start-screen {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    padding: 40px 60px;
+    border-radius: 15px;
+    border: 3px solid #ffd700;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+}
+
+.start-screen h2 {
+    font-size: 3em;
+    color: #ffd700;
+    margin-bottom: 30px;
+    text-shadow: 2px 2px 8px rgba(255, 215, 0, 0.5);
+}
+
+.start-screen p {
+    font-size: 1.2em;
+    margin: 15px 0;
+    color: #e0e0e0;
+}
+
+button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 15px 40px;
+    font-size: 1.3em;
+    border-radius: 30px;
+    cursor: pointer;
+    margin-top: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+    font-weight: bold;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* 移动端技能按钮 */
+.mobile-skill-btn {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00D4FF 0%, #0099FF 100%);
+    border: 3px solid #00FFFF;
+    color: white;
+    font-size: 0.9em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(0, 212, 255, 0.5);
+    cursor: pointer;
+    z-index: 10000;
+    transition: all 0.3s ease;
+    padding: 0;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-skill-btn .skill-icon {
+    font-size: 2em;
+    line-height: 1;
+    margin-bottom: 2px;
+}
+
+.mobile-skill-btn .skill-text {
+    font-size: 0.7em;
+    font-weight: bold;
+}
+
+.mobile-skill-btn .skill-cooldown-text {
+    position: absolute;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #FF6666;
+}
+
+.mobile-skill-btn.ready {
+    animation: skillPulse 1.5s infinite;
+    box-shadow: 0 4px 25px rgba(0, 255, 255, 0.8);
+}
+
+.mobile-skill-btn.cooldown {
+    background: linear-gradient(135deg, #666 0%, #444 100%);
+    border-color: #999;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    cursor: not-allowed;
+}
+
+.mobile-skill-btn:active:not(.cooldown) {
+    transform: scale(0.9);
+    box-shadow: 0 2px 15px rgba(0, 212, 255, 0.6);
+}
+
+@keyframes skillPulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 4px 25px rgba(0, 255, 255, 0.8);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 6px 35px rgba(0, 255, 255, 1);
+    }
+}
+
+/* 移动端蓄力按钮 */
+.mobile-charge-btn {
+    position: fixed;
+    bottom: 30px;
+    left: 30px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF6B00 0%, #FF4500 100%);
+    border: 3px solid #FFA500;
+    color: white;
+    font-size: 0.9em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(255, 107, 0, 0.5);
+    cursor: pointer;
+    z-index: 10000;
+    transition: all 0.3s ease;
+    padding: 0;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-charge-btn .charge-icon {
+    font-size: 2em;
+    line-height: 1;
+    margin-bottom: 2px;
+}
+
+.mobile-charge-btn .charge-text {
+    font-size: 0.7em;
+    font-weight: bold;
+}
+
+.mobile-charge-btn .charge-progress {
+    position: absolute;
+    bottom: 5px;
+    font-size: 0.8em;
+    font-weight: bold;
+    color: #FFFF00;
+}
+
+.mobile-charge-btn.charging {
+    animation: chargePulse 0.3s infinite;
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+    border-color: #FFFF00;
+    box-shadow: 0 4px 30px rgba(255, 215, 0, 1);
+}
+
+.mobile-charge-btn.ready {
+    animation: chargeReady 1s infinite;
+    background: linear-gradient(135deg, #00FF00 0%, #00CC00 100%);
+    border-color: #00FFFF;
+    box-shadow: 0 6px 35px rgba(0, 255, 0, 1);
+}
+
+.mobile-charge-btn:active {
+    transform: scale(0.95);
+}
+
+@keyframes chargePulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+@keyframes chargeReady {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 6px 35px rgba(0, 255, 0, 1);
+    }
+    50% {
+        transform: scale(1.08);
+        box-shadow: 0 8px 45px rgba(0, 255, 255, 1);
+    }
+}
+
+.controls-hint {
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.9em;
+}
+
+.controls-hint p {
+    margin: 0;
+    color: #e0e0e0;
+}
+
+/* 爆炸动画 */
+@keyframes explode {
+    0% {
+        transform: scale(0);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+/* 分数飘动动画 */
+@keyframes scoreFloat {
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+}
+
+/* 移动端适配 */
+@media screen and (max-width: 768px) {
+    body {
+        align-items: flex-start;
+    }
+
+    .game-container {
+        gap: 5px;
+        padding: 5px;
+    }
+
+    .header {
+        padding: 8px 15px;
+    }
+
+    .header h1 {
+        font-size: 1.3em;
+        margin-bottom: 5px;
+    }
+
+    .stats {
+        gap: 8px;
+        font-size: 0.8em;
+        flex-wrap: nowrap; /* 小屏幕也不换行 */
+        overflow-x: auto; /* 如果太窄可以滚动 */
+    }
+    
+    .stat {
+        min-width: auto; /* 移动端不设置最小宽度 */
+    }
+    
+    .label {
+        min-width: auto; /* 移动端不设置最小宽度 */
+    }
+
+    #gameCanvas {
+        border: 2px solid #ffd700;
+        width: 100vw !important;
+        height: auto !important;
+        border-radius: 0;
+    }
+
+    .controls-hint {
+        display: none;
+    }
+
+    /* 移动端技能按钮调整 */
+    .mobile-skill-btn {
+        bottom: 20px;
+        right: 20px;
+        width: 70px;
+        height: 70px;
+    }
+
+    .mobile-skill-btn .skill-icon {
+        font-size: 1.8em;
+    }
+
+    .mobile-skill-btn .skill-text {
+        font-size: 0.65em;
+    }
+
+    .game-over, .start-screen {
+        padding: 20px 30px;
+        width: 90%;
+        max-width: 400px;
+    }
+
+    .game-over h2, .start-screen h2 {
+        font-size: 2em;
+    }
+
+    .game-over p, .start-screen p {
+        font-size: 1.1em;
+        margin: 8px 0;
+    }
+
+    button {
+        padding: 12px 30px;
+        font-size: 1.1em;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .header h1 {
+        font-size: 1.1em;
+    }
+
+    .stats {
+        font-size: 0.8em;
+        gap: 5px;
+        flex-wrap: nowrap; /* 强制不换行 */
+    }
+    
+    .stat {
+        gap: 3px; /* 减小间距 */
+    }
+
+    /* 小屏幕上调整技能按钮 */
+    .mobile-skill-btn {
+        bottom: 15px;
+        right: 15px;
+        width: 60px;
+        height: 60px;
+    }
+
+    .mobile-skill-btn .skill-icon {
+        font-size: 1.5em;
+    }
+
+    .mobile-skill-btn .skill-text {
+        font-size: 0.6em;
+    }
+
+    .mobile-skill-btn .skill-cooldown-text {
+        font-size: 1.3em;
+    }
+
+    .game-over h2, .start-screen h2 {
+        font-size: 1.5em;
+    }
+
+    .game-over p, .start-screen p {
+        font-size: 0.95em;
+    }
+}
+
+/* 横屏提示 */
+@media screen and (max-width: 768px) and (orientation: landscape) {
+    body::before {
+        content: "请将设备竖屏以获得最佳体验";
+        position: fixed;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 215, 0, 0.9);
+        color: #000;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.8em;
+        z-index: 9999;
+    }
+}
