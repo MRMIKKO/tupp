@@ -25,6 +25,7 @@ class Player {
             S: { active: false, endTime: 0 },      // 三弹道
             L: { active: false, endTime: 0 },      // 激光
             B: { active: false, endTime: 0 },      // 爆炸弹
+            C: { active: false, endTime: 0 },      // 追踪火箭炮
             P: { active: false, endTime: 0, level: 0 } // 强化（可叠加，最多5级）
         };
         this.explosions = []; // 爆炸效果数组
@@ -368,6 +369,32 @@ class Player {
                     bullet.speedY = -Math.cos(angle) * baseSpeed;
                     this.bullets.push(bullet);
                 });
+            }
+            
+        } else if (this.powerUps.C.active) {
+            // C - 追踪火箭炮模式：固定数量，P等级只增加威力
+            const pLevel = this.powerUps.P.level;
+            const rocketCount = 1; // 固定1发火箭，避免卡顿
+            
+            for (let i = 0; i < rocketCount; i++) {
+                let offsetX = 0;
+                if (rocketCount > 1) {
+                    // 多发火箭从左到右排列
+                    const spacing = 15;
+                    offsetX = (i - (rocketCount - 1) / 2) * spacing;
+                }
+                
+                const rocket = new Bullet(centerX + offsetX, centerY, 8, true, this.canvasHeight);
+                rocket.damage = 3 + pLevel * 1.2; // P等级只增加威力，不增加数量
+                rocket.size = 8;
+                rocket.penetrating = false;
+                rocket.isHoming = true; // 开启追踪
+                rocket.homingStrength = 0.15; // 追踪强度
+                rocket.isCharged = true; // 标记为蓄力弹以启用追踪逻辑
+                rocket.isMissile = true; // 标记为火箭（用于绘制）
+                rocket.speedX = 0;
+                rocket.speedY = -8;
+                this.bullets.push(rocket);
             }
             
         } else if (this.powerUps.S.active) {
@@ -841,6 +868,7 @@ class Player {
             S: { active: false, endTime: 0 },
             L: { active: false, endTime: 0 },
             B: { active: false, endTime: 0 },
+            C: { active: false, endTime: 0 },
             P: { active: false, endTime: 0, level: 0 }
         };
         this.explosions = [];
@@ -868,6 +896,7 @@ class Player {
             case 'S':
             case 'L':
             case 'B':
+            case 'C':
                 // 弹道类型道具 - 互斥，切换时重置其他弹道类型
                 // 检查是否是相同类型（重置时间）
                 const isSameType = this.powerUps[type].active;
@@ -882,6 +911,7 @@ class Player {
                 this.powerUps.S.active = false;
                 this.powerUps.L.active = false;
                 this.powerUps.B.active = false;
+                this.powerUps.C.active = false;
                 
                 // 根据难度计算持续时间
                 const duration = calculateWeaponDuration(difficulty);

@@ -24,6 +24,14 @@ const POWERUP_TYPES = {
         duration: 0, // 0表示无限时长，会根据难度计算
         bgColor: '#FF4500'
     },
+    C: {
+        name: '追踪弹',
+        color: '#FF6600',
+        icon: 'C',
+        description: '追踪火箭炮',
+        duration: 0, // 0表示无限时长，会根据难度计算
+        bgColor: '#FF6600'
+    },
     HP: {
         name: '生命',
         color: '#FF1493',
@@ -75,7 +83,7 @@ class PowerUp {
         
         // 随机选择道具类型
         const types = Object.keys(POWERUP_TYPES);
-        const weights = [25, 15, 20, 30, 10]; // S, L, B, HP, P 的权重
+        const weights = [20, 12, 15, 18, 25, 10]; // S, L, B, C, HP, P 的权重
         const randomValue = Math.random() * 100;
         let cumulative = 0;
         let selectedType = 'S';

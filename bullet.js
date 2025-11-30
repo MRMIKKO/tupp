@@ -149,6 +149,66 @@ class Bullet {
                     ctx.fill();
                 }
                 
+            } else if (this.isMissile) {
+                // 追踪火箭效果 - 橙红色火箭
+                const size = this.size || 8;
+                
+                // 计算火箭飞行角度（基于速度方向）
+                const angle = Math.atan2(this.speedX, -this.speedY);
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(angle);
+                
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#FF4500';
+                
+                // 火箭弹体 - 椭圆形（现在相对于0,0绘制）
+                const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
+                gradient.addColorStop(0, '#FFFF00');
+                gradient.addColorStop(0.3, '#FF6600');
+                gradient.addColorStop(0.7, '#FF4500');
+                gradient.addColorStop(1, '#CC3300');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, size * 0.6, size * 1.2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 火箭尾焰 - 动态喷射效果（向后喷射）
+                const flameLength = 12 + Math.random() * 4;
+                const flameGradient = ctx.createLinearGradient(0, 0, 0, flameLength);
+                flameGradient.addColorStop(0, 'rgba(255, 220, 150, 0.95)');
+                flameGradient.addColorStop(0.4, 'rgba(255, 120, 50, 0.7)');
+                flameGradient.addColorStop(0.7, 'rgba(255, 80, 20, 0.4)');
+                flameGradient.addColorStop(1, 'rgba(255, 50, 0, 0)');
+                
+                ctx.fillStyle = flameGradient;
+                ctx.beginPath();
+                ctx.moveTo(-size * 0.35, 0);
+                ctx.lineTo(0, flameLength);
+                ctx.lineTo(size * 0.35, 0);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 额外的火焰粒子效果
+                ctx.fillStyle = 'rgba(255, 200, 100, 0.6)';
+                for (let i = 0; i < 2; i++) {
+                    const particleY = 4 + Math.random() * 8;
+                    const particleX = (Math.random() - 0.5) * size * 0.5;
+                    ctx.beginPath();
+                    ctx.arc(particleX, particleY, 1 + Math.random(), 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // 火箭头部高光
+                ctx.fillStyle = '#FFFFFF';
+                ctx.beginPath();
+                ctx.arc(0, -size * 0.6, size * 0.25, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+                
             } else if (this.isCharged) {
                 // 蓄力子弹 - 更大更亮
                 const size = this.size || 15;
