@@ -150,7 +150,7 @@ class Enemy {
             ctx.translate(-(this.x + this.width / 2), -(this.y + this.height / 2));
         }
 
-        // 根据类型绘制不同颜色的飞机
+        // 根据类型绘制不同颜色的FG
         ctx.fillStyle = this.type.color;
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 1.5;

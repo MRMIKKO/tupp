@@ -1,4 +1,4 @@
-// 玩家飞机类
+// 玩家FG类
 class Player {
     constructor(canvas) {
         this.width = 40;
@@ -185,7 +185,7 @@ class Player {
             const deltaX = touchX - this.lastTouchX;
             const deltaY = touchY - this.lastTouchY;
             
-            // 根据偏移量移动飞机
+            // 根据偏移量移动FG
             this.x += deltaX;
             this.y += deltaY;
             
@@ -525,7 +525,7 @@ class Player {
             ctx.globalAlpha = 0.5;
         }
 
-        // 绘制飞机机身 - P-51 Mustang风格
+        // 绘制FG机身 - P-51 Mustang风格
         ctx.fillStyle = '#4A90E2';
         ctx.strokeStyle = '#2E5C8A';
         ctx.lineWidth = 2;

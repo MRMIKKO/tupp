@@ -82,7 +82,7 @@ class Bullet {
                 }
             }
             
-            // 移动子弹
+            // 移动子弹,
             if (this.speedX !== 0 || this.speedY !== 0) {
                 this.x += this.speedX;
                 this.y += this.speedY;
