@@ -150,69 +150,150 @@ class Enemy {
             ctx.translate(-(this.x + this.width / 2), -(this.y + this.height / 2));
         }
 
-        // 根据类型绘制不同颜色的FG
-        ctx.fillStyle = this.type.color;
+        const centerX = this.x + this.width / 2;
+        const centerY = this.y + this.height / 2;
+
+        // 二战日本战机风格 - 更凶狠的设计
+        // 机身主体（流线型，带金属质感）
+        const bodyGradient = ctx.createLinearGradient(centerX - 8, centerY, centerX + 8, centerY);
+        bodyGradient.addColorStop(0, this.adjustColor(this.type.color, -20));
+        bodyGradient.addColorStop(0.5, this.type.color);
+        bodyGradient.addColorStop(1, this.adjustColor(this.type.color, -20));
+        
+        ctx.fillStyle = bodyGradient;
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 1.5;
 
-        // 绘制敌机主体（向下飞行）
+        // 尖锐的机头（侵略性设计）
         ctx.beginPath();
-        ctx.moveTo(this.x + this.width / 2, this.y + this.height);
-        ctx.lineTo(this.x + this.width / 2 - 7, this.y + 15);
-        ctx.lineTo(this.x + this.width / 2 - 5, this.y);
-        ctx.lineTo(this.x + this.width / 2 + 5, this.y);
-        ctx.lineTo(this.x + this.width / 2 + 7, this.y + 15);
+        ctx.moveTo(centerX, this.y + this.height); // 尖锐机头
+        ctx.lineTo(centerX - 4, this.y + this.height - 8);
+        ctx.lineTo(centerX - 7, this.y + 15);
+        ctx.lineTo(centerX - 6, this.y + 5);
+        ctx.lineTo(centerX - 4, this.y);
+        ctx.lineTo(centerX + 4, this.y);
+        ctx.lineTo(centerX + 6, this.y + 5);
+        ctx.lineTo(centerX + 7, this.y + 15);
+        ctx.lineTo(centerX + 4, this.y + this.height - 8);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // 机翼
-        const wingColor = this.adjustColor(this.type.color, 20);
-        ctx.fillStyle = wingColor;
+        // 主翼（大型展翼，展现威胁感）
+        const wingGradient = ctx.createLinearGradient(this.x, centerY, this.x + this.width, centerY);
+        wingGradient.addColorStop(0, this.adjustColor(this.type.color, 10));
+        wingGradient.addColorStop(0.5, this.adjustColor(this.type.color, 30));
+        wingGradient.addColorStop(1, this.adjustColor(this.type.color, 10));
+        ctx.fillStyle = wingGradient;
         
-        // 左翼
+        // 左翼（更长更锐利）
         ctx.beginPath();
-        ctx.moveTo(this.x, this.y + 20);
-        ctx.lineTo(this.x + 5, this.y + 25);
-        ctx.lineTo(this.x + this.width / 2 - 7, this.y + 25);
-        ctx.lineTo(this.x + 3, this.y + 30);
+        ctx.moveTo(centerX - 7, this.y + 18);
+        ctx.lineTo(this.x - 2, this.y + 22);
+        ctx.lineTo(this.x + 2, this.y + 28);
+        ctx.lineTo(centerX - 7, this.y + 26);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
         // 右翼
         ctx.beginPath();
-        ctx.moveTo(this.x + this.width, this.y + 20);
-        ctx.lineTo(this.x + this.width - 5, this.y + 25);
-        ctx.lineTo(this.x + this.width / 2 + 7, this.y + 25);
-        ctx.lineTo(this.x + this.width - 3, this.y + 30);
+        ctx.moveTo(centerX + 7, this.y + 18);
+        ctx.lineTo(this.x + this.width + 2, this.y + 22);
+        ctx.lineTo(this.x + this.width - 2, this.y + 28);
+        ctx.lineTo(centerX + 7, this.y + 26);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // 驾驶舱
+        // 尾翼（双垂尾设计）
+        ctx.fillStyle = this.adjustColor(this.type.color, -10);
+        ctx.beginPath();
+        ctx.moveTo(centerX - 4, this.y + 3);
+        ctx.lineTo(centerX - 7, this.y);
+        ctx.lineTo(centerX - 5, this.y + 8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(centerX + 4, this.y + 3);
+        ctx.lineTo(centerX + 7, this.y);
+        ctx.lineTo(centerX + 5, this.y + 8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 驾驶舱（深色玻璃）
+        const cockpitGradient = ctx.createRadialGradient(centerX, this.y + this.height - 12, 0, centerX, this.y + this.height - 12, 4);
+        cockpitGradient.addColorStop(0, 'rgba(50, 30, 30, 0.9)');
+        cockpitGradient.addColorStop(0.7, 'rgba(30, 20, 20, 0.8)');
+        cockpitGradient.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
+        ctx.fillStyle = cockpitGradient;
+        ctx.beginPath();
+        ctx.ellipse(centerX, this.y + this.height - 12, 3, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#111';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 机枪炮口（威胁标识）
         ctx.fillStyle = '#222';
         ctx.beginPath();
-        ctx.arc(this.x + this.width / 2, this.y + this.height - 15, 3, 0, Math.PI * 2);
+        ctx.arc(centerX - 5, this.y + this.height - 3, 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(centerX + 5, this.y + this.height - 3, 1, 0, Math.PI * 2);
         ctx.fill();
 
-        // 机尾标识（纳粹十字或日本圆标）
-        if (this.type.color === '#8B0000') {
-            // 日本红圆标
-            ctx.fillStyle = '#FF0000';
+        // 日本军徽 - 红日标记（更大更醒目）
+        if (this.type.color === '#8B0000' || this.type.name === '零式战斗机') {
+            // 机翼上的红日圆标（左翼）
+            ctx.fillStyle = '#CC0000';
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 0.5;
             ctx.beginPath();
-            ctx.arc(this.x + this.width / 2 - 12, this.y + 27, 3, 0, Math.PI * 2);
+            ctx.arc(this.x + 8, this.y + 25, 4, 0, Math.PI * 2);
             ctx.fill();
-            ctx.arc(this.x + this.width / 2 + 12, this.y + 27, 3, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // 右翼红日
+            ctx.beginPath();
+            ctx.arc(this.x + this.width - 8, this.y + 25, 4, 0, Math.PI * 2);
             ctx.fill();
+            ctx.stroke();
+            
+            // 机身中央红日（最大的）
+            ctx.fillStyle = '#DD0000';
+            ctx.beginPath();
+            ctx.arc(centerX, this.y + 20, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
         } else {
-            // 德国十字标
+            // 其他敌机的标记（德国铁十字）
             ctx.fillStyle = '#000';
-            ctx.fillRect(this.x + this.width / 2 - 13, this.y + 26, 6, 2);
-            ctx.fillRect(this.x + this.width / 2 - 11, this.y + 24, 2, 6);
-            ctx.fillRect(this.x + this.width / 2 + 7, this.y + 26, 6, 2);
-            ctx.fillRect(this.x + this.width / 2 + 9, this.y + 24, 2, 6);
+            const crossSize = 3;
+            // 左翼十字
+            ctx.fillRect(this.x + 6, this.y + 24, crossSize * 2, 1);
+            ctx.fillRect(this.x + 7, this.y + 23, 1, crossSize * 2);
+            // 右翼十字
+            ctx.fillRect(this.x + this.width - 8 - crossSize, this.y + 24, crossSize * 2, 1);
+            ctx.fillRect(this.x + this.width - 8, this.y + 23, 1, crossSize * 2);
         }
+
+        // 排气管效果（引擎尾焰暗示）
+        ctx.strokeStyle = 'rgba(80, 40, 40, 0.6)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(centerX - 3, this.y);
+        ctx.lineTo(centerX - 3, this.y + 4);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(centerX + 3, this.y);
+        ctx.lineTo(centerX + 3, this.y + 4);
+        ctx.stroke();
 
         // 血量条
         if (this.health < this.maxHealth) {

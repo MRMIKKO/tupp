@@ -525,93 +525,254 @@ class Player {
             ctx.globalAlpha = 0.5;
         }
 
-        // 绘制FG机身 - P-51 Mustang风格
-        ctx.fillStyle = '#4A90E2';
-        ctx.strokeStyle = '#2E5C8A';
-        ctx.lineWidth = 2;
+        // 现代战斗机风格（类似F-35/雷霆战机）
+        const centerX = this.x + this.width / 2;
+        const centerY = this.y + this.height / 2;
 
-        // 主机身
+        // 主机身 - 深灰色金属质感
+        const bodyGradient = ctx.createLinearGradient(centerX - 10, centerY, centerX + 10, centerY);
+        bodyGradient.addColorStop(0, '#3A4A5A');
+        bodyGradient.addColorStop(0.5, '#5A6A7A');
+        bodyGradient.addColorStop(1, '#3A4A5A');
+        
+        ctx.fillStyle = bodyGradient;
+        ctx.strokeStyle = '#1A2A3A';
+        ctx.lineWidth = 1.5;
+
+        // 机身主体（流线型）
         ctx.beginPath();
-        ctx.moveTo(this.x + this.width / 2, this.y);
-        ctx.lineTo(this.x + this.width / 2 - 8, this.y + 35);
-        ctx.lineTo(this.x + this.width / 2 - 6, this.y + this.height);
-        ctx.lineTo(this.x + this.width / 2 + 6, this.y + this.height);
-        ctx.lineTo(this.x + this.width / 2 + 8, this.y + 35);
+        ctx.moveTo(centerX, this.y); // 机头
+        ctx.lineTo(centerX - 6, this.y + 12);
+        ctx.lineTo(centerX - 8, this.y + 30);
+        ctx.lineTo(centerX - 6, this.y + this.height - 5);
+        ctx.lineTo(centerX, this.y + this.height); // 机尾
+        ctx.lineTo(centerX + 6, this.y + this.height - 5);
+        ctx.lineTo(centerX + 8, this.y + 30);
+        ctx.lineTo(centerX + 6, this.y + 12);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // 机翼
-        ctx.fillStyle = '#5BA3F5';
+        // 主翼（三角翼设计）
+        const wingGradient = ctx.createLinearGradient(this.x, centerY, this.x + this.width, centerY);
+        wingGradient.addColorStop(0, '#4A5A6A');
+        wingGradient.addColorStop(0.5, '#6A7A8A');
+        wingGradient.addColorStop(1, '#4A5A6A');
+        ctx.fillStyle = wingGradient;
+
+        // 左翼
         ctx.beginPath();
-        ctx.moveTo(this.x, this.y + 25);
-        ctx.lineTo(this.x + 5, this.y + 20);
-        ctx.lineTo(this.x + this.width / 2 - 8, this.y + 30);
-        ctx.lineTo(this.x + 3, this.y + 35);
+        ctx.moveTo(centerX - 8, this.y + 20);
+        ctx.lineTo(this.x, this.y + 28);
+        ctx.lineTo(this.x + 4, this.y + 35);
+        ctx.lineTo(centerX - 8, this.y + 32);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 右翼
+        ctx.beginPath();
+        ctx.moveTo(centerX + 8, this.y + 20);
+        ctx.lineTo(this.x + this.width, this.y + 28);
+        ctx.lineTo(this.x + this.width - 4, this.y + 35);
+        ctx.lineTo(centerX + 8, this.y + 32);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 尾翼
+        ctx.fillStyle = '#5A6A7A';
+        ctx.beginPath();
+        ctx.moveTo(centerX - 3, this.y + this.height - 8);
+        ctx.lineTo(centerX - 6, this.y + this.height - 2);
+        ctx.lineTo(centerX, this.y + this.height);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.moveTo(this.x + this.width, this.y + 25);
-        ctx.lineTo(this.x + this.width - 5, this.y + 20);
-        ctx.lineTo(this.x + this.width / 2 + 8, this.y + 30);
-        ctx.lineTo(this.x + this.width - 3, this.y + 35);
+        ctx.moveTo(centerX + 3, this.y + this.height - 8);
+        ctx.lineTo(centerX + 6, this.y + this.height - 2);
+        ctx.lineTo(centerX, this.y + this.height);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // 驾驶舱
-        ctx.fillStyle = '#333';
+        // 驾驶舱（玻璃质感）
+        const cockpitGradient = ctx.createRadialGradient(centerX, this.y + 10, 0, centerX, this.y + 10, 5);
+        cockpitGradient.addColorStop(0, 'rgba(100, 200, 255, 0.8)');
+        cockpitGradient.addColorStop(0.7, 'rgba(50, 100, 150, 0.6)');
+        cockpitGradient.addColorStop(1, 'rgba(20, 40, 60, 0.8)');
+        ctx.fillStyle = cockpitGradient;
         ctx.beginPath();
-        ctx.arc(this.x + this.width / 2, this.y + 15, 4, 0, Math.PI * 2);
+        ctx.ellipse(centerX, this.y + 10, 4, 6, 0, 0, Math.PI * 2);
         ctx.fill();
-
-        // 机头螺旋桨效果
-        ctx.strokeStyle = '#999';
+        ctx.strokeStyle = '#2A3A4A';
         ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(this.x + this.width / 2, this.y + 3, 5, 0, Math.PI * 2);
         ctx.stroke();
 
-        // 国徽标志（五角星）
-        this.drawStar(ctx, this.x + this.width / 2 - 15, this.y + 28, 3, '#FFD700');
-        this.drawStar(ctx, this.x + this.width / 2 + 15, this.y + 28, 3, '#FFD700');
+        // 引擎喷口发光效果
+        const engineGlow = ctx.createRadialGradient(centerX, this.y + this.height, 0, centerX, this.y + this.height, 8);
+        engineGlow.addColorStop(0, 'rgba(100, 150, 255, 0.6)');
+        engineGlow.addColorStop(0.5, 'rgba(50, 100, 200, 0.3)');
+        engineGlow.addColorStop(1, 'rgba(0, 50, 150, 0)');
+        ctx.fillStyle = engineGlow;
+        ctx.beginPath();
+        ctx.arc(centerX, this.y + this.height, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 机身细节线条
+        ctx.strokeStyle = '#6A7A8A';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(centerX - 4, this.y + 15);
+        ctx.lineTo(centerX - 4, this.y + 40);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(centerX + 4, this.y + 15);
+        ctx.lineTo(centerX + 4, this.y + 40);
+        ctx.stroke();
+
+        // 武器挂载点标识
+        ctx.fillStyle = '#FF6B6B';
+        ctx.beginPath();
+        ctx.arc(this.x + 8, this.y + 30, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(this.x + this.width - 8, this.y + 30, 1.5, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.restore();
         
-        // 绘制蓄力条
+        // 绘制雷电球能量护盾（替代进度条）
         if (this.isCharging) {
             const chargePercent = this.chargeTime / this.maxChargeTime;
-            const barWidth = 50;
-            const barHeight = 5;
-            const barX = this.x + this.width / 2 - barWidth / 2;
-            const barY = this.y - 15;
+            const chargeFull = chargePercent >= 1;
             
-            // 背景条
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            ctx.fillRect(barX, barY, barWidth, barHeight);
+            // 能量球位置（飞机前方）
+            const energyX = centerX;
+            const energyY = this.y - 15;
+            const maxRadius = 22;
+            const currentRadius = 10 + maxRadius * chargePercent;
             
-            // 蓄力进度条
-            const gradientColor = chargePercent < 1 ? '#FFD700' : '#00FF00';
-            ctx.fillStyle = gradientColor;
-            ctx.fillRect(barX, barY, barWidth * chargePercent, barHeight);
+            // 脉冲动画
+            const time = Date.now() * 0.001;
+            const pulseOffset = Math.sin(time * 5) * (chargeFull ? 3 : 1);
+            const drawRadius = currentRadius + pulseOffset;
             
-            // 边框
-            ctx.strokeStyle = '#FFF';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(barX, barY, barWidth, barHeight);
+            ctx.save();
             
-            // 蓄力满时的光效
-            if (chargePercent >= 1) {
-                ctx.save();
-                ctx.shadowColor = '#00FF00';
-                ctx.shadowBlur = 10;
-                ctx.strokeStyle = '#00FF00';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(barX - 2, barY - 2, barWidth + 4, barHeight + 4);
-                ctx.restore();
+            // 外层电离层光晕
+            const outerGlow = ctx.createRadialGradient(energyX, energyY, 0, energyX, energyY, drawRadius * 2);
+            if (chargeFull) {
+                outerGlow.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+                outerGlow.addColorStop(0.3, 'rgba(200, 220, 255, 0.3)');
+                outerGlow.addColorStop(0.6, 'rgba(100, 150, 255, 0.2)');
+                outerGlow.addColorStop(1, 'rgba(50, 100, 200, 0)');
+            } else {
+                outerGlow.addColorStop(0, 'rgba(150, 200, 255, 0.3)');
+                outerGlow.addColorStop(0.5, 'rgba(80, 150, 255, 0.2)');
+                outerGlow.addColorStop(1, 'rgba(40, 100, 200, 0)');
             }
+            ctx.fillStyle = outerGlow;
+            ctx.beginPath();
+            ctx.arc(energyX, energyY, drawRadius * 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 绘制闪电电弧（从中心向外）
+            const lightningCount = chargeFull ? 12 : Math.floor(6 * chargePercent + 3);
+            ctx.strokeStyle = chargeFull ? 'rgba(220, 240, 255, 0.9)' : 'rgba(150, 200, 255, 0.7)';
+            ctx.lineWidth = chargeFull ? 2 : 1.5;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = chargeFull ? '#FFF' : '#88DDFF';
+            
+            for (let i = 0; i < lightningCount; i++) {
+                const baseAngle = (i / lightningCount) * Math.PI * 2 + time;
+                const startAngle = baseAngle + (Math.random() - 0.5) * 0.3;
+                
+                ctx.beginPath();
+                ctx.moveTo(energyX, energyY);
+                
+                // 闪电路径（锯齿状）
+                let currentX = energyX;
+                let currentY = energyY;
+                const segments = 4;
+                
+                for (let j = 1; j <= segments; j++) {
+                    const progress = j / segments;
+                    const radius = drawRadius * progress;
+                    const angle = startAngle + (Math.random() - 0.5) * 0.5;
+                    const nextX = energyX + Math.cos(angle) * radius;
+                    const nextY = energyY + Math.sin(angle) * radius;
+                    
+                    // 添加随机偏移
+                    const offsetX = (Math.random() - 0.5) * 5;
+                    const offsetY = (Math.random() - 0.5) * 5;
+                    
+                    ctx.lineTo(nextX + offsetX, nextY + offsetY);
+                    currentX = nextX;
+                    currentY = nextY;
+                }
+                
+                ctx.stroke();
+            }
+            
+            // 中心球体（电浆核心）
+            const coreGradient = ctx.createRadialGradient(energyX, energyY, 0, energyX, energyY, drawRadius * 0.6);
+            if (chargeFull) {
+                coreGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                coreGradient.addColorStop(0.3, 'rgba(220, 240, 255, 0.9)');
+                coreGradient.addColorStop(0.6, 'rgba(150, 200, 255, 0.7)');
+                coreGradient.addColorStop(1, 'rgba(100, 180, 255, 0.3)');
+            } else {
+                coreGradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+                coreGradient.addColorStop(0.4, 'rgba(180, 220, 255, 0.7)');
+                coreGradient.addColorStop(1, 'rgba(100, 180, 255, 0.4)');
+            }
+            ctx.fillStyle = coreGradient;
+            ctx.shadowBlur = chargeFull ? 25 : 15;
+            ctx.shadowColor = chargeFull ? '#FFF' : '#88DDFF';
+            ctx.beginPath();
+            ctx.arc(energyX, energyY, drawRadius * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 环形电弧（围绕球体旋转）
+            if (chargePercent > 0.3) {
+                ctx.shadowBlur = 10;
+                ctx.strokeStyle = chargeFull ? 'rgba(255, 255, 255, 0.8)' : 'rgba(150, 220, 255, 0.6)';
+                ctx.lineWidth = chargeFull ? 2.5 : 1.5;
+                
+                const rings = chargeFull ? 3 : 2;
+                for (let i = 0; i < rings; i++) {
+                    const ringAngle = time * (2 + i * 0.5) + i * Math.PI * 2 / rings;
+                    const ringRadius = drawRadius * 0.85;
+                    
+                    ctx.beginPath();
+                    ctx.arc(energyX, energyY, ringRadius, ringAngle, ringAngle + Math.PI * 0.6);
+                    ctx.stroke();
+                }
+            }
+            
+            // 内核闪烁点
+            if (chargeFull) {
+                ctx.fillStyle = 'rgba(255, 255, 255, ' + (0.6 + Math.sin(time * 10) * 0.4) + ')';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#FFF';
+                ctx.beginPath();
+                ctx.arc(energyX, energyY, drawRadius * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            ctx.restore();
+            
+            // 保存能量球位置和半径，用于碰撞检测
+            this.chargeShield = {
+                x: energyX,
+                y: energyY,
+                radius: drawRadius
+            };
+        } else {
+            this.chargeShield = null;
         }
 
         // 绘制子弹
