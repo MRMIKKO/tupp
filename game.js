@@ -26,12 +26,6 @@ class Game {
         this.particles = [];
         this.powerUps = []; // 道具数组
         
-        // Boss系统
-        this.boss = null;
-        this.bossActive = false;
-        this.bossTimer = 0; // Boss计时器
-        this.bossInterval = 1080; // 每18秒出现一次Boss (60fps * 18秒)
-        
         // 清屏技能
         this.lightningSkill = {
             available: true,
@@ -47,7 +41,7 @@ class Game {
         this.difficulty = 1;
         this.difficultyTimer = 0; // 难度计时器
         this.difficultyIncreaseInterval = 600; // 每10秒增加难度（60fps * 10）
-        this.maxDifficulty = 10; // 最大难度等级
+        this.maxDifficulty = 20; // 最大难度等级
         
         // 背景
         this.clouds = [];
@@ -58,7 +52,6 @@ class Game {
         this.livesElement = document.getElementById('lives');
         this.killsElement = document.getElementById('kills');
         this.difficultyElement = document.getElementById('difficulty');
-        this.bossProgressElement = document.getElementById('bossProgress');
         this.skillCooldownElement = document.getElementById('skillCooldown');
         this.mobileSkillBtn = document.getElementById('mobileSkillBtn');
         this.startScreen = document.getElementById('startScreen');
@@ -162,12 +155,6 @@ class Game {
         this.difficultyTimer = 0; // 重置难度计时器
         this.enemySpawnTimer = 0; // 重置敌机生成计时器
         
-        // 重置Boss系统
-        this.boss = null;
-        this.bossActive = false;
-        this.bossTimer = 0;
-        this.bossInterval = 1080; // 每18秒出现一次Boss
-        
         // 重置技能冷却
         this.lightningSkill.available = true;
         this.lightningSkill.cooldown = 0;
@@ -216,47 +203,41 @@ class Game {
         // 更新玩家（传入敌人列表用于追踪弹）
         this.player.update(this.canvas, this.audioManager, this.enemies);
 
-        // 难度系统 - 击败Boss后才能升级（移除自动难度提升）
-        // 不再使用时间自动提升难度
-
-        // Boss系统逻辑 - 基于时间触发
-        if (!this.bossActive) {
-            this.bossTimer++;
-            if (this.bossTimer >= this.bossInterval) {
-                // 触发Boss战
-                this.spawnBoss();
-                this.bossTimer = 0; // 重置计时器
+        // 难度系统 - 每10秒自动提升难度
+        this.difficultyTimer++;
+        if (this.difficultyTimer >= this.difficultyIncreaseInterval) {
+            if (this.difficulty < this.maxDifficulty) {
+                this.difficulty++;
+                this.updateUI();
             }
+            this.difficultyTimer = 0;
         }
 
-        // 生成敌机 - 根据难度动态调整（Boss战期间不生成普通敌机）
-        if (!this.bossActive) {
-            this.enemySpawnTimer++;
-            // 生成间隔：难度越高，间隔越短（从100降到30帧）
-            const spawnRate = Math.max(30, this.enemySpawnRate - this.difficulty * 7);
-            
-            // 难度越高，可能同时生成多架敌机 (增加1.5倍)
-            const baseSpawns = Math.min(3, Math.floor(this.difficulty / 3) + 1);
-            const simultaneousSpawns = Math.ceil(baseSpawns * 1.5);
-            
-            if (this.enemySpawnTimer >= spawnRate) {
-                // 根据难度生成敌机（数量增加1.5倍）
-                for (let i = 0; i < simultaneousSpawns; i++) {
-                    // 确保敌机不重叠，传入当前难度
-                    const newEnemy = new Enemy(this.canvas, null, this.difficulty);
-                    newEnemy.x += i * 80; // 横向偏移避免重叠
-                    
-                    // 难度超过7时，有30%概率从底部出现阻击玩家
-                    if (this.difficulty > 7 && Math.random() < 0.3) {
-                        newEnemy.y = this.canvas.height; // 从底部出现
-                        newEnemy.speed = -Math.abs(newEnemy.speed); // 向上移动（负速度）
-                        newEnemy.isBottomSpawned = true; // 标记为底部生成的敌机
-                    }
-                    
-                    this.enemies.push(newEnemy);
+        // 生成敌机 - 根据难度动态调整
+        this.enemySpawnTimer++;
+        // 生成间隔：难度越高，间隔越短（从100降到20帧）
+        const spawnRate = Math.max(20, this.enemySpawnRate - this.difficulty * 4);
+        
+        // 难度越高，可能同时生成多架敌机
+        const simultaneousSpawns = Math.min(5, Math.floor(this.difficulty / 3) + 1);
+        
+        if (this.enemySpawnTimer >= spawnRate) {
+            // 根据难度生成敌机
+            for (let i = 0; i < simultaneousSpawns; i++) {
+                // 确保敌机不重叠，传入当前难度
+                const newEnemy = new Enemy(this.canvas, null, this.difficulty);
+                newEnemy.x += i * 80; // 横向偏移避免重叠
+                
+                // 难度超过7时，有30%概率从底部出现阻击玩家
+                if (this.difficulty > 7 && Math.random() < 0.3) {
+                    newEnemy.y = this.canvas.height; // 从底部出现
+                    newEnemy.speed = -Math.abs(newEnemy.speed); // 向上移动（负速度）
+                    newEnemy.isBottomSpawned = true; // 标记为底部生成的敌机
                 }
-                this.enemySpawnTimer = 0;
+                
+                this.enemies.push(newEnemy);
             }
+            this.enemySpawnTimer = 0;
         }
 
         // 更新敌机
@@ -441,132 +422,6 @@ class Game {
             }
         });
 
-        // Boss战逻辑
-        if (this.bossActive && this.boss) {
-            // 更新Boss
-            this.boss.update(this.canvas, this.player);
-            
-            // Boss子弹击中玩家
-            if (this.boss && this.boss.bullets) {
-                this.boss.bullets.forEach(bullet => {
-                    if (!bullet.active) return;
-                    
-                    // 检查是否被蓄力护盾拦截（穿透弹除外）
-                    if (this.player.chargeShield && !bullet.isPenetrating) {
-                        const shield = this.player.chargeShield;
-                        const dx = bullet.x - shield.x;
-                        const dy = bullet.y - shield.y;
-                        const distance = Math.sqrt(dx * dx + dy * dy);
-                        
-                        if (distance < shield.radius) {
-                            bullet.active = false;
-                            this.createExplosion(bullet.x, bullet.y, '#00BFFF', 0.3);
-                            return;
-                        }
-                    }
-                    
-                    // 检查碰撞 - 圆形子弹使用圆形碰撞检测
-                    let hit = false;
-                    if (bullet.size) {
-                        // 圆形碰撞检测（用于全屏弹幕等圆形子弹）
-                        const playerCenterX = this.player.x + this.player.width / 2;
-                        const playerCenterY = this.player.y + this.player.height / 2;
-                        const dx = bullet.x - playerCenterX;
-                        const dy = bullet.y - playerCenterY;
-                        const distance = Math.sqrt(dx * dx + dy * dy);
-                        const collisionDist = bullet.size + Math.min(this.player.width, this.player.height) / 2;
-                        hit = distance < collisionDist;
-                    } else {
-                        // 矩形碰撞检测（用于Bullet类实例）
-                        hit = this.checkCollision(bullet, this.player);
-                    }
-                    
-                    if (hit) {
-                        bullet.active = false;
-                        if (this.player.hit()) {
-                            this.createExplosion(this.player.x + this.player.width / 2, 
-                                               this.player.y + this.player.height / 2, '#4A90E2');
-                            this.audioManager.playPlayerHit();
-                            this.updateUI();
-                            
-                            if (this.player.lives <= 0) {
-                                this.gameOver();
-                            }
-                        }
-                    }
-                });
-            }
-            
-            // 玩家子弹击中Boss
-            let bossDefeated = false;
-            this.player.bullets.forEach(bullet => {
-                if (!bullet.active || !this.boss || bossDefeated) return;
-                
-                if (this.checkCollision(bullet, this.boss)) {
-                    if (!bullet.penetrating) {
-                        bullet.active = false;
-                    }
-                    
-                    const damage = bullet.damage || 1;
-                    if (this.boss.hit(damage)) {
-                        // Boss被击败 - 先保存位置信息
-                        const bossX = this.boss.x;
-                        const bossY = this.boss.y;
-                        const bossWidth = this.boss.width;
-                        const bossHeight = this.boss.height;
-                        const bossScore = this.boss.score;
-                        
-                        this.score += bossScore;
-                        this.createExplosion(bossX + bossWidth / 2, 
-                                           bossY + bossHeight / 2, '#FFD700', 2);
-                        
-                        // Boss击败奖励 - 掉落多个道具
-                        for (let i = 0; i < 5; i++) {
-                            this.powerUps.push(new PowerUp(
-                                bossX + bossWidth / 2 - 50 + i * 25,
-                                bossY + bossHeight / 2
-                            ));
-                        }
-                        
-                        this.audioManager.playExplosion();
-                        
-                        // 标记Boss已被击败
-                        bossDefeated = true;
-                        
-                        // 清除Boss
-                        this.boss = null;
-                        this.bossActive = false;
-                        this.bossTimer = 0; // 重置Boss计时器
-                        
-                        // 击败Boss后提升难度
-                        if (this.difficulty < this.maxDifficulty) {
-                            this.difficulty++;
-                            
-                            // 显示难度提升提示
-                            this.showDifficultyUpgrade();
-                        }
-                    } else {
-                        this.createHitEffect(bullet.x, bullet.y);
-                        this.audioManager.playHit();
-                    }
-                }
-            });
-            
-            // 玩家与Boss碰撞
-            if (this.boss && !bossDefeated && this.checkCollision(this.player, this.boss)) {
-                if (this.player.hit()) {
-                    this.createExplosion(this.player.x + this.player.width / 2, 
-                                       this.player.y + this.player.height / 2, '#4A90E2');
-                    this.audioManager.playPlayerHit();
-                    this.updateUI();
-                    
-                    if (this.player.lives <= 0) {
-                        this.gameOver();
-                    }
-                }
-            }
-        }
-
         // 更新粒子
         this.particles = this.particles.filter(particle => {
             particle.update();
@@ -599,10 +454,6 @@ class Game {
         this.enemies.forEach(enemy => enemy.draw(this.ctx));
         this.enemyBullets.forEach(bullet => bullet.draw(this.ctx)); // 绘制敌机子弹
         
-        // 绘制Boss
-        if (this.bossActive && this.boss) {
-            this.boss.draw(this.ctx);
-        }
         this.powerUps.forEach(powerUp => powerUp.draw(this.ctx)); // 绘制道具
         this.player.draw(this.ctx);
         this.player.explosions.forEach(exp => exp.draw(this.ctx)); // 绘制爆炸范围
@@ -739,95 +590,6 @@ class Game {
                obj1.x + obj1.width > obj2.x &&
                obj1.y < obj2.y + obj2.height &&
                obj1.y + obj1.height > obj2.y;
-    }
-    
-    spawnBoss() {
-        // 清除所有现存敌机和子弹
-        this.enemies = [];
-        this.enemyBullets = [];
-        
-        // 创建Boss
-        this.boss = new Boss(this.canvas, this.difficulty);
-        this.bossActive = true;
-        
-        // Boss出现提示
-        this.showBossWarning();
-    }
-    
-    showBossWarning() {
-        // 屏幕警告闪烁效果
-        let flashCount = 0;
-        const flashInterval = setInterval(() => {
-            if (flashCount >= 6) {
-                clearInterval(flashInterval);
-                return;
-            }
-            
-            // 创建警告文字的闪烁
-            const warningOverlay = document.createElement('div');
-            warningOverlay.style.position = 'fixed';
-            warningOverlay.style.top = '30%';
-            warningOverlay.style.left = '50%';
-            warningOverlay.style.transform = 'translate(-50%, -50%)';
-            warningOverlay.style.fontSize = '48px';
-            warningOverlay.style.fontWeight = 'bold';
-            warningOverlay.style.color = '#FF0000';
-            warningOverlay.style.textShadow = '0 0 20px #FF0000, 0 0 40px #FF0000';
-            warningOverlay.style.zIndex = '10000';
-            warningOverlay.textContent = '⚠️ WARNING ⚠️';
-            warningOverlay.style.animation = 'bossWarning 0.5s ease-out';
-            
-            document.body.appendChild(warningOverlay);
-            
-            setTimeout(() => {
-                document.body.removeChild(warningOverlay);
-            }, 500);
-            
-            flashCount++;
-        }, 300);
-        
-        // 添加CSS动画
-        if (!document.getElementById('boss-warning-style')) {
-            const style = document.createElement('style');
-            style.id = 'boss-warning-style';
-            style.textContent = `
-                @keyframes bossWarning {
-                    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
-                    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-                    100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
-                }
-                @keyframes difficultyUp {
-                    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8) rotateY(90deg); }
-                    50% { opacity: 1; transform: translate(-50%, -50%) scale(1.3) rotateY(0deg); }
-                    100% { opacity: 0; transform: translate(-50%, -50%) scale(1) rotateY(-90deg); }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-    }
-    
-    showDifficultyUpgrade() {
-        // 显示难度提升动画
-        const upgradeOverlay = document.createElement('div');
-        upgradeOverlay.style.position = 'fixed';
-        upgradeOverlay.style.top = '50%';
-        upgradeOverlay.style.left = '50%';
-        upgradeOverlay.style.transform = 'translate(-50%, -50%)';
-        upgradeOverlay.style.fontSize = '64px';
-        upgradeOverlay.style.fontWeight = 'bold';
-        upgradeOverlay.style.color = '#FFD700';
-        upgradeOverlay.style.textShadow = '0 0 30px #FFD700, 0 0 60px #FFA500, 0 0 90px #FF8C00';
-        upgradeOverlay.style.zIndex = '10000';
-        upgradeOverlay.textContent = `🎖️ 难度 ${this.difficulty} 🎖️`;
-        upgradeOverlay.style.animation = 'difficultyUp 2s ease-out';
-        
-        document.body.appendChild(upgradeOverlay);
-        
-        setTimeout(() => {
-            document.body.removeChild(upgradeOverlay);
-        }, 2000);
-        
-        console.log(`难度提升到 ${this.difficulty}！需要击败 ${this.killsForNextBoss} 架敌机才能挑战下一个Boss`);
     }
 
     createExplosion(x, y, color) {
