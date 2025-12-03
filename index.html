@@ -19,20 +19,12 @@
                     <span id="score">0</span>
                 </div>
                 <div class="stat">
-                    <span class="label">生命:</span>
-                    <span id="lives">❤️❤️❤️</span>
-                </div>
-                <div class="stat">
                     <span class="label">击杀:</span>
                     <span id="kills">0</span>
                 </div>
                 <div class="stat">
                     <span class="label">难度:</span>
                     <span id="difficulty">1</span>
-                </div>
-                <div class="stat" id="skillStat">
-                    <span class="label">⚡技能:</span>
-                    <span id="skillCooldown" class="skill-ready">就绪</span>
                 </div>
             </div>
         </div>
@@ -55,6 +47,7 @@
             <p class="mobile-controls" style="display: none;">触摸屏幕移动FG</p>
             <p class="mobile-controls" style="display: none;">自动发射子弹</p>
             <p class="mobile-controls" style="display: none;">快速3连击触发蓄力炮💥</p>
+            <p class="mobile-controls" style="display: none;">摇一摇手机释放清屏技能⚡</p>
             <p>消灭敌军战斗机！</p>
             <button id="startBtn">开始游戏</button>
         </div>
@@ -63,13 +56,6 @@
             <p>🎮 控制: WASD/方向键移动 | 空格/J键射击 | I键蓄力炮 | K键闪电技能 | M键静音</p>
         </div>
     </div>
-    
-    <!-- 移动端技能按钮 -->
-    <button id="mobileSkillBtn" class="mobile-skill-btn hidden">
-        <span class="skill-icon">⚡</span>
-        <span class="skill-text">清屏</span>
-        <span class="skill-cooldown-text"></span>
-    </button>
     
     <script src="audio.js"></script>
     <script src="bullet.js"></script>

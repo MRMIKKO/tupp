@@ -49,17 +49,25 @@ class Game {
         
         // UI元素
         this.scoreElement = document.getElementById('score');
-        this.livesElement = document.getElementById('lives');
         this.killsElement = document.getElementById('kills');
         this.difficultyElement = document.getElementById('difficulty');
-        this.skillCooldownElement = document.getElementById('skillCooldown');
-        this.mobileSkillBtn = document.getElementById('mobileSkillBtn');
         this.startScreen = document.getElementById('startScreen');
         this.gameOverScreen = document.getElementById('gameOver');
         this.startBtn = document.getElementById('startBtn');
         this.restartBtn = document.getElementById('restartBtn');
         
+        // 摇一摇检测
+        this.shakeDetection = {
+            lastX: 0,
+            lastY: 0,
+            lastZ: 0,
+            shakeThreshold: 15, // 摇动阈值
+            lastShakeTime: 0,
+            shakeCooldown: 1000 // 1秒冷却时间，防止误触
+        };
+        
         this.setupEventListeners();
+        this.setupShakeDetection();
     }
 
     setCanvasSize() {
@@ -83,38 +91,53 @@ class Game {
         if (isMobile) {
             desktopControls.forEach(el => el.style.display = 'none');
             mobileControls.forEach(el => el.style.display = 'block');
-            // 显示移动端技能按钮
-            if (this.mobileSkillBtn) {
-                this.mobileSkillBtn.classList.remove('hidden');
-            }
         } else {
             desktopControls.forEach(el => el.style.display = 'block');
             mobileControls.forEach(el => el.style.display = 'none');
-            // 隐藏移动端技能按钮
-            if (this.mobileSkillBtn) {
-                this.mobileSkillBtn.classList.add('hidden');
-            }
+        }
+    }
+    
+    // 设置摇一摇检测
+    setupShakeDetection() {
+        if (window.DeviceMotionEvent) {
+            window.addEventListener('devicemotion', (event) => {
+                if (this.gameState !== 'playing') return;
+                
+                const acceleration = event.accelerationIncludingGravity;
+                if (!acceleration) return;
+                
+                const currentX = acceleration.x || 0;
+                const currentY = acceleration.y || 0;
+                const currentZ = acceleration.z || 0;
+                
+                // 计算加速度变化
+                const deltaX = Math.abs(currentX - this.shakeDetection.lastX);
+                const deltaY = Math.abs(currentY - this.shakeDetection.lastY);
+                const deltaZ = Math.abs(currentZ - this.shakeDetection.lastZ);
+                
+                // 检测是否超过阈值
+                if ((deltaX > this.shakeDetection.shakeThreshold || 
+                     deltaY > this.shakeDetection.shakeThreshold || 
+                     deltaZ > this.shakeDetection.shakeThreshold)) {
+                    
+                    const now = Date.now();
+                    if (now - this.shakeDetection.lastShakeTime > this.shakeDetection.shakeCooldown) {
+                        this.shakeDetection.lastShakeTime = now;
+                        this.activateLightningSkill();
+                    }
+                }
+                
+                // 更新上次的值
+                this.shakeDetection.lastX = currentX;
+                this.shakeDetection.lastY = currentY;
+                this.shakeDetection.lastZ = currentZ;
+            });
         }
     }
 
     setupEventListeners() {
         this.startBtn.addEventListener('click', () => this.startGame());
         this.restartBtn.addEventListener('click', () => this.restartGame());
-        
-        // 移动端技能按钮
-        if (this.mobileSkillBtn) {
-            this.mobileSkillBtn.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                if (this.gameState === 'playing') {
-                    this.activateLightningSkill();
-                }
-            });
-            
-            // 防止按钮被长按选中
-            this.mobileSkillBtn.addEventListener('touchend', (e) => {
-                e.preventDefault();
-            });
-        }
         
         // 静音快捷键 + 清屏技能
         document.addEventListener('keydown', (e) => {
@@ -208,6 +231,7 @@ class Game {
         if (this.difficultyTimer >= this.difficultyIncreaseInterval) {
             if (this.difficulty < this.maxDifficulty) {
                 this.difficulty++;
+                
                 this.updateUI();
             }
             this.difficultyTimer = 0;
@@ -219,7 +243,11 @@ class Game {
         const spawnRate = Math.max(20, this.enemySpawnRate - this.difficulty * 4);
         
         // 难度越高，可能同时生成多架敌机
-        const simultaneousSpawns = Math.min(5, Math.floor(this.difficulty / 3) + 1);
+        let simultaneousSpawns = Math.min(5, Math.floor(this.difficulty / 3) + 1);
+        // 难度5之前，敌机数量增加2倍
+        if (this.difficulty < 5) {
+            simultaneousSpawns = Math.min(10, simultaneousSpawns * 2);
+        }
         
         if (this.enemySpawnTimer >= spawnRate) {
             // 根据难度生成敌机
@@ -284,6 +312,17 @@ class Game {
                         if (enemy.hit()) {
                             this.score += enemy.score;
                             this.kills++;
+                            
+                            // 增加经验值（击杀敌机）- 随难度递减以平衡游戏
+                            // 难度1: 10, 难度5: 8, 难度10: 6, 难度15: 4, 难度20+: 3
+                            const expIncrease = Math.max(3, 10 - Math.floor(this.difficulty / 3));
+                            this.player.addExp(expIncrease);
+                            
+                            // 增加P槽值（击杀敌机）- 随难度递减，但速度比经验慢
+                            // 难度1: 10, 难度10: 8, 难度20: 6, 难度30+: 5
+                            const pGaugeIncrease = Math.max(5, 10 - Math.floor(this.difficulty / 5));
+                            this.player.addPGauge(pGaugeIncrease);
+                            
                             enemy.health = 0;
                             this.createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#FFA500');
                             break;
@@ -318,6 +357,16 @@ class Game {
                             this.score += enemy.score;
                             this.kills++;
                             this.createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#FF6600');
+                            
+                            // 增加经验值（击杀敌机）- 随难度递减以平衡游戏
+                            // 难度1: 10, 难度5: 8, 难度10: 6, 难度15: 4, 难度20+: 3
+                            const expIncrease = Math.max(3, 10 - Math.floor(this.difficulty / 3));
+                            this.player.addExp(expIncrease);
+                            
+                            // 增加P槽值（击杀敌机）- 随难度递减，但速度比经验慢
+                            // 难度1: 10, 难度10: 8, 难度20: 6, 难度30+: 5
+                            const pGaugeIncrease = Math.max(5, 10 - Math.floor(this.difficulty / 5));
+                            this.player.addPGauge(pGaugeIncrease);
                             
                             // 随机生成道具（30%概率）
                             if (Math.random() < 0.3) {
@@ -395,7 +444,7 @@ class Game {
                     this.audioManager.playPlayerHit(); // 播放玩家受伤音效
                     this.updateUI();
                     
-                    if (this.player.lives <= 0) {
+                    if (this.player.health <= 0) {
                         this.gameOver();
                     }
                 }
@@ -405,13 +454,13 @@ class Game {
         // 碰撞检测 - 玩家与敌机
         this.enemies.forEach(enemy => {
             if (this.checkCollision(this.player, enemy)) {
-                if (this.player.hit()) {
+                if (this.player.hit(30)) { // 撞击伤害更高
                     this.createExplosion(this.player.x + this.player.width / 2, 
                                        this.player.y + this.player.height / 2, '#4A90E2');
                     this.audioManager.playPlayerHit(); // 播放玩家受伤音效
                     this.updateUI();
                     
-                    if (this.player.lives <= 0) {
+                    if (this.player.health <= 0) {
                         this.gameOver();
                     }
                 }
@@ -458,6 +507,15 @@ class Game {
         this.player.draw(this.ctx);
         this.player.explosions.forEach(exp => exp.draw(this.ctx)); // 绘制爆炸范围
         this.particles.forEach(particle => particle.draw(this.ctx));
+        
+        // 绘制P槽UI
+        this.drawPGauge();
+        
+        // 绘制经验槽UI
+        this.drawExpGauge();
+        
+        // 绘制HP槽UI
+        this.drawHPGauge();
         
         // 绘制闪电效果
         this.drawLightning();
@@ -584,6 +642,331 @@ class Game {
             }
         }
     }
+    
+    // 绘制P槽UI
+    drawPGauge() {
+        const x = this.canvas.width - 25; // 屏幕右侧
+        const y = 60; // 从顶部60px开始
+        const width = 10; // 竖条宽度（减半）
+        const height = 150; // 竖条高度
+        const radius = 5; // 圆角半径（减半）
+        
+        // 满级时显示满槽，否则显示实际进度
+        const progress = this.player.powerUps.P.level >= 6 ? 1 : (this.player.pGauge / this.player.pGaugeMax);
+        
+        this.ctx.save();
+        
+        // 绘制圆角矩形外框
+        this.ctx.strokeStyle = '#0066CC';
+        this.ctx.lineWidth = 1.5; // 更细的边框
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + radius, y);
+        this.ctx.lineTo(x + width - radius, y);
+        this.ctx.arcTo(x + width, y, x + width, y + radius, radius);
+        this.ctx.lineTo(x + width, y + height - radius);
+        this.ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+        this.ctx.lineTo(x + radius, y + height);
+        this.ctx.arcTo(x, y + height, x, y + height - radius, radius);
+        this.ctx.lineTo(x, y + radius);
+        this.ctx.arcTo(x, y, x + radius, y, radius);
+        this.ctx.closePath();
+        this.ctx.stroke();
+        
+        // 背景
+        this.ctx.fillStyle = 'rgba(0, 50, 100, 0.3)';
+        this.ctx.fill();
+        
+        // P槽进度条 - 蓝色渐变（从下往上填充）
+        if (progress > 0) {
+            const fillHeight = height * progress;
+            const fillY = y + height - fillHeight;
+            
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.moveTo(x + radius, y);
+            this.ctx.lineTo(x + width - radius, y);
+            this.ctx.arcTo(x + width, y, x + width, y + radius, radius);
+            this.ctx.lineTo(x + width, y + height - radius);
+            this.ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+            this.ctx.lineTo(x + radius, y + height);
+            this.ctx.arcTo(x, y + height, x, y + height - radius, radius);
+            this.ctx.lineTo(x, y + radius);
+            this.ctx.arcTo(x, y, x + radius, y, radius);
+            this.ctx.closePath();
+            this.ctx.clip();
+            
+            const gradient = this.ctx.createLinearGradient(x, y + height, x, fillY);
+            gradient.addColorStop(0, '#0099FF');
+            gradient.addColorStop(0.5, '#00CCFF');
+            gradient.addColorStop(1, '#00FFFF');
+            
+            this.ctx.fillStyle = gradient;
+            this.ctx.fillRect(x, fillY, width, fillHeight);
+            
+            // 发光效果
+            if (progress > 0.8) {
+                this.ctx.shadowBlur = 15;
+                this.ctx.shadowColor = '#00FFFF';
+                this.ctx.fillRect(x, fillY, width, fillHeight);
+            }
+            
+            this.ctx.restore();
+        }
+        
+        // P等级显示（在槽的上方）
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.strokeStyle = '#000000';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeText(`P×${this.player.powerUps.P.level}`, x + width / 2, y - 10);
+        this.ctx.fillText(`P×${this.player.powerUps.P.level}`, x + width / 2, y - 10);
+        
+        this.ctx.restore();
+        
+        // 绘制P升级提示（在玩家飞机顶部）
+        if (this.player.pUpgradeNotification) {
+            const notification = this.player.pUpgradeNotification;
+            const alpha = Math.min(1, notification.timer / 10); // 更快的淡入淡出效果
+            const offsetY = (40 - notification.timer) * 0.75; // 更快的向上飘动效果
+            
+            this.ctx.save();
+            this.ctx.globalAlpha = alpha;
+            
+            // 在玩家飞机机头位置显示（贴着机头出现，然后向上飘）
+            const textX = this.player.x + this.player.width / 2;
+            const textY = this.player.y - offsetY; // 从机头位置开始，向上飘动
+            
+            // 文字描边
+            this.ctx.strokeStyle = '#0066CC';
+            this.ctx.lineWidth = 3;
+            this.ctx.font = 'bold 18px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.strokeText('Level Up!', textX, textY);
+            
+            // 文字填充
+            this.ctx.fillStyle = '#00FFFF';
+            this.ctx.fillText('Level Up!', textX, textY);
+            
+            this.ctx.restore();
+        }
+    }
+    
+    // 绘制经验槽UI（在P槽正下方）
+    drawExpGauge() {
+        const pGaugeY = 60; // P槽顶部Y坐标
+        const pGaugeHeight = 150; // P槽高度
+        const spacing = 35; // P槽与经验槽之间的间距（增加15px）
+        
+        const x = this.canvas.width - 25; // 屏幕右侧，与P槽对齐
+        const y = pGaugeY + pGaugeHeight + spacing; // P槽下方
+        const width = 10; // 竖条宽度，与P槽一致
+        const height = 150; // 竖条高度，与P槽一致
+        const radius = 5; // 圆角半径，与P槽一致
+        
+        const progress = this.player.exp / this.player.expMax;
+        
+        this.ctx.save();
+        
+        // 绘制圆角矩形外框
+        this.ctx.strokeStyle = '#FFD700';
+        this.ctx.lineWidth = 1.5;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + radius, y);
+        this.ctx.lineTo(x + width - radius, y);
+        this.ctx.arcTo(x + width, y, x + width, y + radius, radius);
+        this.ctx.lineTo(x + width, y + height - radius);
+        this.ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+        this.ctx.lineTo(x + radius, y + height);
+        this.ctx.arcTo(x, y + height, x, y + height - radius, radius);
+        this.ctx.lineTo(x, y + radius);
+        this.ctx.arcTo(x, y, x + radius, y, radius);
+        this.ctx.closePath();
+        this.ctx.stroke();
+        
+        // 背景
+        this.ctx.fillStyle = 'rgba(100, 80, 0, 0.3)';
+        this.ctx.fill();
+        
+        // 经验槽进度条 - 金色渐变（从下往上填充）
+        if (progress > 0) {
+            const fillHeight = height * progress;
+            const fillY = y + height - fillHeight;
+            
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.moveTo(x + radius, y);
+            this.ctx.lineTo(x + width - radius, y);
+            this.ctx.arcTo(x + width, y, x + width, y + radius, radius);
+            this.ctx.lineTo(x + width, y + height - radius);
+            this.ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+            this.ctx.lineTo(x + radius, y + height);
+            this.ctx.arcTo(x, y + height, x, y + height - radius, radius);
+            this.ctx.lineTo(x, y + radius);
+            this.ctx.arcTo(x, y, x + radius, y, radius);
+            this.ctx.closePath();
+            this.ctx.clip();
+            
+            const gradient = this.ctx.createLinearGradient(x, y + height, x, fillY);
+            gradient.addColorStop(0, '#FFD700');
+            gradient.addColorStop(0.5, '#FFA500');
+            gradient.addColorStop(1, '#FFFF00');
+            
+            this.ctx.fillStyle = gradient;
+            this.ctx.fillRect(x, fillY, width, fillHeight);
+            
+            // 发光效果
+            if (progress > 0.8) {
+                this.ctx.shadowBlur = 15;
+                this.ctx.shadowColor = '#FFD700';
+                this.ctx.fillRect(x, fillY, width, fillHeight);
+            }
+            
+            this.ctx.restore();
+        }
+        
+        // EXP等级显示（在槽的上方）
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.strokeStyle = '#000000';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeText(`Lv${this.player.playerLevel}`, x + width / 2, y - 10);
+        this.ctx.fillText(`Lv${this.player.playerLevel}`, x + width / 2, y - 10);
+        
+        this.ctx.restore();
+        
+        // 绘制经验升级提示（在玩家飞机顶部偏右）
+        if (this.player.expUpgradeNotification) {
+            const notification = this.player.expUpgradeNotification;
+            const alpha = Math.min(1, notification.timer / 10);
+            const offsetY = (40 - notification.timer) * 0.75;
+            
+            this.ctx.save();
+            this.ctx.globalAlpha = alpha;
+            
+            const textX = this.player.x + this.player.width / 2 + 30; // 偏右避免与P升级重叠
+            const textY = this.player.y - offsetY;
+            
+            // 文字描边
+            this.ctx.strokeStyle = '#CC6600';
+            this.ctx.lineWidth = 3;
+            this.ctx.font = 'bold 18px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.strokeText('Level Up!', textX, textY);
+            
+            // 文字填充
+            this.ctx.fillStyle = '#FFD700';
+            this.ctx.fillText('Level Up!', textX, textY);
+            
+            this.ctx.restore();
+        }
+    }
+    
+    // 绘制HP槽UI（在P槽下方）
+    // 绘制HP槽UI（在屏幕左侧，与P槽对称）
+    drawHPGauge() {
+        const pGaugeTopY = 60; // P槽顶部Y坐标
+        const baseHeight = 150; // 基础高度
+        const width = 10; // 竖条宽度，与P槽一致
+        const radius = 5; // 圆角半径，与P槽一致
+        
+        // 根据最大生命值计算高度
+        // 基础100HP = 150px, 最大300HP = 450px（3倍高度）
+        const maxAllowedHeight = baseHeight * 3; // 450px
+        const heightRatio = this.player.maxHealth / this.player.baseMaxHealth; // 1.0 到 3.0
+        const height = Math.min(baseHeight * heightRatio, maxAllowedHeight);
+        
+        // HP槽始终与P槽顶部对齐，向下延伸
+        const y = pGaugeTopY;
+        const x = 15; // 屏幕左侧
+        
+        const progress = this.player.health / this.player.maxHealth;
+        
+        this.ctx.save();
+        
+        // 绘制圆角矩形外框
+        this.ctx.strokeStyle = '#FF6666';
+        this.ctx.lineWidth = 1.5;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + radius, y);
+        this.ctx.lineTo(x + width - radius, y);
+        this.ctx.arcTo(x + width, y, x + width, y + radius, radius);
+        this.ctx.lineTo(x + width, y + height - radius);
+        this.ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+        this.ctx.lineTo(x + radius, y + height);
+        this.ctx.arcTo(x, y + height, x, y + height - radius, radius);
+        this.ctx.lineTo(x, y + radius);
+        this.ctx.arcTo(x, y, x + radius, y, radius);
+        this.ctx.closePath();
+        this.ctx.stroke();
+        
+        // 背景
+        this.ctx.fillStyle = 'rgba(100, 50, 50, 0.3)';
+        this.ctx.fill();
+        
+        // HP槽进度条 - 红绿渐变（从下往上填充）
+        if (progress > 0) {
+            const fillHeight = height * progress;
+            const fillY = y + height - fillHeight;
+            
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.moveTo(x + radius, y);
+            this.ctx.lineTo(x + width - radius, y);
+            this.ctx.arcTo(x + width, y, x + width, y + radius, radius);
+            this.ctx.lineTo(x + width, y + height - radius);
+            this.ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+            this.ctx.lineTo(x + radius, y + height);
+            this.ctx.arcTo(x, y + height, x, y + height - radius, radius);
+            this.ctx.lineTo(x, y + radius);
+            this.ctx.arcTo(x, y, x + radius, y, radius);
+            this.ctx.closePath();
+            this.ctx.clip();
+            
+            // 根据血量百分比改变颜色
+            const gradient = this.ctx.createLinearGradient(x, y + height, x, fillY);
+            if (progress > 0.6) {
+                // 高血量：绿色
+                gradient.addColorStop(0, '#00FF00');
+                gradient.addColorStop(0.5, '#66FF66');
+                gradient.addColorStop(1, '#99FF99');
+            } else if (progress > 0.3) {
+                // 中血量：橙色
+                gradient.addColorStop(0, '#FF9900');
+                gradient.addColorStop(0.5, '#FFAA33');
+                gradient.addColorStop(1, '#FFBB66');
+            } else {
+                // 低血量：红色
+                gradient.addColorStop(0, '#FF0000');
+                gradient.addColorStop(0.5, '#FF3333');
+                gradient.addColorStop(1, '#FF6666');
+            }
+            
+            this.ctx.fillStyle = gradient;
+            this.ctx.fillRect(x, fillY, width, fillHeight);
+            
+            // 低血量闪烁效果
+            if (progress <= 0.3) {
+                this.ctx.shadowBlur = 15;
+                this.ctx.shadowColor = '#FF0000';
+                this.ctx.fillRect(x, fillY, width, fillHeight);
+            }
+            
+            this.ctx.restore();
+        }
+        
+        // HP标识显示（在槽的上方）
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.strokeStyle = '#000000';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeText('HP', x + width / 2, y - 10);
+        this.ctx.fillText('HP', x + width / 2, y - 10);
+        
+        this.ctx.restore();
+    }
 
     checkCollision(obj1, obj2) {
         return obj1.x < obj2.x + obj2.width &&
@@ -615,38 +998,6 @@ class Game {
         this.scoreElement.textContent = this.score;
         this.killsElement.textContent = this.kills;
         this.difficultyElement.textContent = this.difficulty;
-        
-        // 更新生命显示
-        const hearts = '❤️'.repeat(this.player.lives);
-        this.livesElement.textContent = hearts || '💀';
-        
-        // 更新技能冷却显示
-        if (this.lightningSkill.cooldown > 0) {
-            const seconds = Math.ceil(this.lightningSkill.cooldown / 60);
-            this.skillCooldownElement.textContent = `${seconds}秒`;
-            this.skillCooldownElement.className = 'skill-cooldown';
-            
-            // 更新移动端按钮
-            if (this.mobileSkillBtn) {
-                this.mobileSkillBtn.classList.remove('ready');
-                this.mobileSkillBtn.classList.add('cooldown');
-                this.mobileSkillBtn.querySelector('.skill-icon').style.display = 'none';
-                this.mobileSkillBtn.querySelector('.skill-text').style.display = 'none';
-                this.mobileSkillBtn.querySelector('.skill-cooldown-text').textContent = seconds;
-            }
-        } else {
-            this.skillCooldownElement.textContent = '就绪';
-            this.skillCooldownElement.className = 'skill-ready';
-            
-            // 更新移动端按钮
-            if (this.mobileSkillBtn) {
-                this.mobileSkillBtn.classList.remove('cooldown');
-                this.mobileSkillBtn.classList.add('ready');
-                this.mobileSkillBtn.querySelector('.skill-icon').style.display = 'block';
-                this.mobileSkillBtn.querySelector('.skill-text').style.display = 'block';
-                this.mobileSkillBtn.querySelector('.skill-cooldown-text').textContent = '';
-            }
-        }
     }
 
     gameOver() {

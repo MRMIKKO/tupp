@@ -7,7 +7,12 @@ class Player {
         this.y = canvas.height - this.height - 20;
         this.speed = 5;
         this.bullets = [];
-        this.lives = 3;
+        
+        // 生命值槽系统
+        this.health = 100; // 当前生命值
+        this.maxHealth = 100; // 最大生命值
+        this.baseMaxHealth = 100; // 基础最大生命值（用于计算上限）
+        
         this.invulnerable = false;
         this.invulnerableTime = 0;
         this.shootCooldown = 0;
@@ -29,6 +34,21 @@ class Player {
             P: { active: false, endTime: 0, level: 0 } // 强化（可叠加，最多5级）
         };
         this.explosions = []; // 爆炸效果数组
+        
+        // P槽存储机制
+        this.pGauge = 0; // 当前P槽值
+        this.pGaugeMax = 100; // P槽最大值（会根据难度和等级调整）
+        this.pUpgradeNotification = null; // P升级提示 {level: N, timer: 0}
+        
+        // 经验槽系统
+        this.exp = 0; // 当前经验值
+        this.expMax = 100; // 经验槽最大值（固定）
+        this.playerLevel = 1; // 玩家等级（无上限）
+        this.expUpgradeNotification = null; // 经验升级提示 {level: N, timer: 0}
+        
+        // 红血状态P等级提升机制
+        this.lowHealthPBoost = false; // 是否处于低血量P提升状态
+        this.savedPLevel = 0; // 保存的原始P等级
         
         // 键盘控制
         this.keys = {
@@ -312,11 +332,12 @@ class Player {
             const pLevel = this.powerUps.P.level;
             const laserCount = Math.min(6, 1 + pLevel); // 1-6条激光
             
+            // 向前发射的激光
             for (let i = 0; i < laserCount; i++) {
                 let offsetX = 0;
                 if (laserCount > 1) {
                     // 多条激光均匀分布
-                    const spacing = 20;
+                    const spacing = 36; // 20 * 1.8 = 36
                     offsetX = (i - (laserCount - 1) / 2) * spacing;
                 }
                 
@@ -330,6 +351,31 @@ class Player {
                 laser.speedY = -15;
                 laser.isLaser = true;
                 this.bullets.push(laser);
+            }
+            
+            // P等级4及以上：增加向后的对称弹道（机身偏下方位置）
+            if (pLevel >= 4) {
+                const rearLaserCount = Math.min(4, pLevel - 3); // 4级1条，5级2条，6级3条
+                const rearY = this.y + this.height * 0.7; // 机身偏下方位置
+                
+                for (let i = 0; i < rearLaserCount; i++) {
+                    let offsetX = 0;
+                    if (rearLaserCount > 1) {
+                        const spacing = 45; // 25 * 1.8 = 45
+                        offsetX = (i - (rearLaserCount - 1) / 2) * spacing;
+                    }
+                    
+                    const rearLaser = new Bullet(centerX + offsetX, rearY, 12, true, this.canvasHeight);
+                    rearLaser.isCharged = true;
+                    rearLaser.damage = (1 + pLevel * 0.5) * 1.2; // 后方激光威力稍低
+                    rearLaser.size = 6;
+                    rearLaser.penetrating = true;
+                    rearLaser.isHoming = false;
+                    rearLaser.speedX = 0;
+                    rearLaser.speedY = 12; // 向下发射（正速度）
+                    rearLaser.isLaser = true;
+                    this.bullets.push(rearLaser);
+                }
             }
             
         } else if (this.powerUps.B.active) {
@@ -426,9 +472,11 @@ class Player {
             }
             if (pLevel >= 5) {
                 angles.push(-Math.PI / 4, Math.PI / 4); // 增加左右45度
+                angles.push(Math.PI + Math.PI / 12, Math.PI - Math.PI / 12); // 增加后方左右15度
             }
             if (pLevel >= 6) {
                 angles.push(-Math.PI / 3, Math.PI / 3); // 增加左右60度
+                // angles.push(Math.PI + Math.PI / 8, Math.PI - Math.PI / 8); // 增加后方左右22.5度
             }
             
             angles.forEach(angle => {
@@ -844,9 +892,9 @@ class Player {
         return [0];
     }
 
-    hit() {
+    hit(damage = 20) {
         if (!this.invulnerable) {
-            this.lives--;
+            this.health -= damage;
             this.invulnerable = true;
             this.invulnerableTime = 120; // 2秒无敌
             return true;
@@ -858,7 +906,9 @@ class Player {
         this.x = canvas.width / 2 - this.width / 2;
         this.y = canvas.height - this.height - 20;
         this.bullets = [];
-        this.lives = 3;
+        this.health = 100;
+        this.maxHealth = 100;
+        this.baseMaxHealth = 100;
         this.invulnerable = false;
         this.invulnerableTime = 0;
         this.canvasHeight = canvas.height; // 更新canvas高度
@@ -872,6 +922,19 @@ class Player {
             P: { active: false, endTime: 0, level: 0 }
         };
         this.explosions = [];
+        
+        // 重置P槽
+        this.pGauge = 0;
+        this.pGaugeMax = 100;
+        
+        // 重置经验和等级
+        this.exp = 0;
+        this.expMax = 100;
+        this.playerLevel = 1;
+        
+        // 重置低血量P提升状态
+        this.lowHealthPBoost = false;
+        this.savedPLevel = 0;
     }
     
     // 激活道具
@@ -880,10 +943,9 @@ class Player {
         
         switch(type) {
             case 'HP':
-                // 回血 - 不影响其他道具
-                if (this.lives < 3) {
-                    this.lives++;
-                }
+                // 回血 - 恢复30%最大生命值，不超过最大值
+                const healAmount = Math.floor(this.maxHealth * 0.3);
+                this.health = Math.min(this.maxHealth, this.health + healAmount);
                 break;
                 
             case 'P':
@@ -902,9 +964,14 @@ class Player {
                 const isSameType = this.powerUps[type].active;
                 
                 // 如果切换了不同的弹道类型，重置P强化效果
-                if (!isSameType) {
+                // 但如果处于低血量P提升状态，则保持满级不重置
+                if (!isSameType && !this.lowHealthPBoost) {
                     this.powerUps.P.active = false;
                     this.powerUps.P.level = 0;
+                } else if (!isSameType && this.lowHealthPBoost) {
+                    // 红血状态下切换弹药，更新保存的P等级为0
+                    this.savedPLevel = 0;
+                    // 保持P满级不变
                 }
                 
                 // 先关闭其他弹道类型
@@ -924,6 +991,84 @@ class Player {
         }
     }
     
+    // 增加经验值（击杀敌机时调用）
+    addExp(amount) {
+        this.exp += amount;
+        
+        // 如果经验槽满了，自动升级
+        while (this.exp >= this.expMax) {
+            this.exp -= this.expMax;
+            this.upgradePlayerLevel();
+        }
+    }
+    
+    // 升级玩家等级
+    upgradePlayerLevel() {
+        this.playerLevel++;
+        
+        // 每升一级：
+        // 1. P槽最大值增加35% - 按比例保持P槽进度
+        const oldPGaugeMax = this.pGaugeMax;
+        const pGaugeProgress = this.pGauge / oldPGaugeMax; // 保存当前进度比例
+        this.pGaugeMax = Math.floor(this.pGaugeMax * 1.35);
+        this.pGauge = Math.floor(this.pGaugeMax * pGaugeProgress); // 按比例恢复进度
+        
+        // 2. 最大生命值增加，但不超过基础值的3倍 - 增长速率为35%/12 ≈ 2.92%
+        const maxAllowedHealth = this.baseMaxHealth * 3;
+        const healthIncrease = Math.floor(this.baseMaxHealth * 0.35 / 12);
+        this.maxHealth = Math.min(this.maxHealth + healthIncrease, maxAllowedHealth);
+        
+        // 同时恢复增加的生命值
+        this.health = Math.min(this.health + healthIncrease, this.maxHealth);
+        
+        // 显示升级提示
+        this.expUpgradeNotification = {
+            level: this.playerLevel,
+            timer: 40 // 显示约0.67秒
+        };
+        
+        // 播放升级音效
+        if (window.audioManager) {
+            audioManager.playPowerUp();
+        }
+    }
+    
+    // 增加P槽值（击杀敌机时调用）
+    addPGauge(amount) {
+        // 满级时不再增加P槽
+        if (this.powerUps.P.level >= 6) {
+            return;
+        }
+        
+        this.pGauge += amount;
+        
+        // 如果P槽满了，自动升级P等级
+        if (this.pGauge >= this.pGaugeMax) {
+            this.pGauge -= this.pGaugeMax; // 扣除一个槽的量
+            this.upgradePLevel();
+        }
+    }
+    
+    // 升级P等级
+    upgradePLevel() {
+        if (this.powerUps.P.level < 6) {
+            this.powerUps.P.active = true;
+            this.powerUps.P.level++;
+            this.powerUps.P.endTime = 0; // 无限时长
+            
+            // 显示升级提示
+            this.pUpgradeNotification = {
+                level: this.powerUps.P.level,
+                timer: 40 // 显示约0.67秒（60fps * 0.67）
+            };
+            
+            // 播放升级音效
+            if (window.audioManager) {
+                audioManager.playPowerUp();
+            }
+        }
+    }
+    
     // 检查道具是否过期
     updatePowerUps() {
         const now = Date.now();
@@ -937,6 +1082,41 @@ class Player {
                     }
                 }
             }
+        }
+        
+        // 更新P升级提示计时器
+        if (this.pUpgradeNotification) {
+            this.pUpgradeNotification.timer--;
+            if (this.pUpgradeNotification.timer <= 0) {
+                this.pUpgradeNotification = null;
+            }
+        }
+        
+        // 更新经验升级提示计时器
+        if (this.expUpgradeNotification) {
+            this.expUpgradeNotification.timer--;
+            if (this.expUpgradeNotification.timer <= 0) {
+                this.expUpgradeNotification = null;
+            }
+        }
+        
+        // 检查低血量P等级提升机制（血量低于30%时临时提升到P满级）
+        const healthPercent = this.health / this.maxHealth;
+        if (healthPercent < 0.3 && !this.lowHealthPBoost) {
+            // 进入低血量状态，提升P等级到满级
+            if (this.powerUps.P.level < 6) {
+                this.savedPLevel = this.powerUps.P.level; // 保存当前等级
+                this.powerUps.P.level = 6; // 临时提升到满级
+                this.powerUps.P.active = true;
+                this.lowHealthPBoost = true; // 标记已激活低血量提升
+            }
+        } else if (healthPercent >= 0.3 && this.lowHealthPBoost) {
+            // 回血超过30%，恢复到原始等级
+            this.powerUps.P.level = this.savedPLevel;
+            if (this.savedPLevel === 0) {
+                this.powerUps.P.active = false;
+            }
+            this.lowHealthPBoost = false; // 取消低血量提升状态
         }
         
         // 更新爆炸效果
