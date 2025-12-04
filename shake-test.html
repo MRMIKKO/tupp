@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta http-equiv="Permissions-Policy" content="accelerometer=*, gyroscope=*">
+    <title>摇一摇测试工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .status.success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+        
+        .status.warning {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+        
+        .status.error {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .data {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .data-row:last-child {
+            border-bottom: none;
+        }
+        
+        .shake-indicator {
+            width: 100%;
+            height: 100px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            margin: 15px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 48px;
+            transition: all 0.3s;
+        }
+        
+        .shake-indicator.active {
+            background: #4caf50;
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 摇一摇功能测试</h1>
+        
+        <div id="statusContainer">
+            <div class="status info">
+                正在检测设备能力...
+            </div>
+        </div>
+        
+        <button id="requestBtn" onclick="requestPermission()">
+            请求传感器权限
+        </button>
+        
+        <div class="shake-indicator" id="shakeIndicator">
+            ⚡
+        </div>
+        
+        <div class="data" id="dataContainer">
+            <div class="data-row">
+                <span>X轴:</span>
+                <span id="xValue">0</span>
+            </div>
+            <div class="data-row">
+                <span>Y轴:</span>
+                <span id="yValue">0</span>
+            </div>
+            <div class="data-row">
+                <span>Z轴:</span>
+                <span id="zValue">0</span>
+            </div>
+            <div class="data-row">
+                <span>变化量:</span>
+                <span id="deltaValue">0</span>
+            </div>
+            <div class="data-row">
+                <span>摇动次数:</span>
+                <span id="shakeCount">0</span>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let lastX = 0, lastY = 0, lastZ = 0;
+        let shakeCount = 0;
+        let isInitialized = false;
+        const shakeThreshold = 12;
+        
+        const statusContainer = document.getElementById('statusContainer');
+        const requestBtn = document.getElementById('requestBtn');
+        const shakeIndicator = document.getElementById('shakeIndicator');
+        
+        function showStatus(message, type = 'info') {
+            statusContainer.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        function checkDeviceSupport() {
+            if (typeof DeviceMotionEvent === 'undefined') {
+                showStatus('❌ 设备不支持运动传感器', 'error');
+                requestBtn.disabled = true;
+                return false;
+            }
+            
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                showStatus('✓ 检测到iOS设备，需要请求权限', 'info');
+                return true;
+            }
+            
+            showStatus('✓ 设备支持运动传感器（非iOS）', 'success');
+            requestBtn.textContent = '开始监听';
+            return true;
+        }
+        
+        async function requestPermission() {
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    showStatus('⏳ 正在请求权限...', 'info');
+                    const permission = await DeviceMotionEvent.requestPermission();
+                    
+                    if (permission === 'granted') {
+                        showStatus('✓ 权限已授予！开始监听...', 'success');
+                        startListening();
+                    } else {
+                        showStatus('❌ 权限被拒绝', 'error');
+                    }
+                } catch (error) {
+                    showStatus('❌ 请求权限出错: ' + error.message, 'error');
+                }
+            } else {
+                startListening();
+            }
+        }
+        
+        function startListening() {
+            requestBtn.disabled = true;
+            showStatus('✓ 正在监听设备运动，试试摇一摇！', 'success');
+            
+            window.addEventListener('devicemotion', handleMotion, false);
+        }
+        
+        function handleMotion(event) {
+            const acceleration = event.accelerationIncludingGravity;
+            if (!acceleration) return;
+            
+            const x = acceleration.x || 0;
+            const y = acceleration.y || 0;
+            const z = acceleration.z || 0;
+            
+            document.getElementById('xValue').textContent = x.toFixed(2);
+            document.getElementById('yValue').textContent = y.toFixed(2);
+            document.getElementById('zValue').textContent = z.toFixed(2);
+            
+            if (!isInitialized) {
+                lastX = x;
+                lastY = y;
+                lastZ = z;
+                isInitialized = true;
+                return;
+            }
+            
+            const deltaX = Math.abs(x - lastX);
+            const deltaY = Math.abs(y - lastY);
+            const deltaZ = Math.abs(z - lastZ);
+            const totalDelta = deltaX + deltaY + deltaZ;
+            
+            document.getElementById('deltaValue').textContent = totalDelta.toFixed(2);
+            
+            if (totalDelta > shakeThreshold) {
+                shakeCount++;
+                document.getElementById('shakeCount').textContent = shakeCount;
+                
+                // 视觉反馈
+                shakeIndicator.classList.add('active');
+                setTimeout(() => {
+                    shakeIndicator.classList.remove('active');
+                }, 300);
+                
+                showStatus(`🎉 检测到摇动！变化量: ${totalDelta.toFixed(2)}`, 'success');
+            }
+            
+            lastX = x;
+            lastY = y;
+            lastZ = z;
+        }
+        
+        // 初始化
+        window.addEventListener('load', () => {
+            checkDeviceSupport();
+        });
+    </script>
+</body>
+</html>

@@ -61,9 +61,10 @@ class Game {
             lastX: 0,
             lastY: 0,
             lastZ: 0,
-            shakeThreshold: 15, // 摇动阈值
+            shakeThreshold: 12, // 摇动阈值（降低以提高灵敏度）
             lastShakeTime: 0,
-            shakeCooldown: 1000 // 1秒冷却时间，防止误触
+            shakeCooldown: 1000, // 1秒冷却时间，防止误触
+            isInitialized: false // 标记是否已初始化
         };
         
         this.setupEventListeners();
@@ -99,40 +100,107 @@ class Game {
     
     // 设置摇一摇检测
     setupShakeDetection() {
-        if (window.DeviceMotionEvent) {
-            window.addEventListener('devicemotion', (event) => {
-                if (this.gameState !== 'playing') return;
-                
-                const acceleration = event.accelerationIncludingGravity;
-                if (!acceleration) return;
-                
-                const currentX = acceleration.x || 0;
-                const currentY = acceleration.y || 0;
-                const currentZ = acceleration.z || 0;
-                
-                // 计算加速度变化
-                const deltaX = Math.abs(currentX - this.shakeDetection.lastX);
-                const deltaY = Math.abs(currentY - this.shakeDetection.lastY);
-                const deltaZ = Math.abs(currentZ - this.shakeDetection.lastZ);
-                
-                // 检测是否超过阈值
-                if ((deltaX > this.shakeDetection.shakeThreshold || 
-                     deltaY > this.shakeDetection.shakeThreshold || 
-                     deltaZ > this.shakeDetection.shakeThreshold)) {
-                    
-                    const now = Date.now();
-                    if (now - this.shakeDetection.lastShakeTime > this.shakeDetection.shakeCooldown) {
-                        this.shakeDetection.lastShakeTime = now;
-                        this.activateLightningSkill();
-                    }
-                }
-                
-                // 更新上次的值
+        // 注册设备运动事件监听器
+        this.deviceMotionHandler = (event) => {
+            if (this.gameState !== 'playing') return;
+            
+            const acceleration = event.accelerationIncludingGravity;
+            if (!acceleration) return;
+            
+            const currentX = acceleration.x || 0;
+            const currentY = acceleration.y || 0;
+            const currentZ = acceleration.z || 0;
+            
+            // 首次初始化，记录初始值
+            if (!this.shakeDetection.isInitialized) {
                 this.shakeDetection.lastX = currentX;
                 this.shakeDetection.lastY = currentY;
                 this.shakeDetection.lastZ = currentZ;
-            });
+                this.shakeDetection.isInitialized = true;
+                return;
+            }
+            
+            // 计算加速度变化
+            const deltaX = Math.abs(currentX - this.shakeDetection.lastX);
+            const deltaY = Math.abs(currentY - this.shakeDetection.lastY);
+            const deltaZ = Math.abs(currentZ - this.shakeDetection.lastZ);
+            
+            // 计算总变化量
+            const totalDelta = deltaX + deltaY + deltaZ;
+            
+            // 检测是否超过阈值（使用更灵敏的检测）
+            if (totalDelta > this.shakeDetection.shakeThreshold) {
+                const now = Date.now();
+                if (now - this.shakeDetection.lastShakeTime > this.shakeDetection.shakeCooldown) {
+                    this.shakeDetection.lastShakeTime = now;
+                    console.log(`摇一摇触发！变化量: ${totalDelta.toFixed(2)}`);
+                    this.activateLightningSkill();
+                }
+            }
+            
+            // 更新上次的值
+            this.shakeDetection.lastX = currentX;
+            this.shakeDetection.lastY = currentY;
+            this.shakeDetection.lastZ = currentZ;
+        };
+    }
+    
+    // 请求设备运动权限（iOS 13+需要）
+    async requestMotionPermission() {
+        // 检测是否为iOS设备且需要权限请求
+        if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+            try {
+                console.log('请求iOS设备运动权限...');
+                const permission = await DeviceMotionEvent.requestPermission();
+                console.log('权限请求结果:', permission);
+                
+                if (permission === 'granted') {
+                    window.addEventListener('devicemotion', this.deviceMotionHandler, false);
+                    console.log('✓ 设备运动权限已授予，摇一摇功能已启用');
+                    // 可选：显示一个简短的提示
+                    this.showTip('摇一摇功能已启用！');
+                } else {
+                    console.log('✗ 设备运动权限被拒绝');
+                    this.showTip('摇一摇功能需要运动传感器权限');
+                }
+            } catch (error) {
+                console.error('请求设备运动权限时出错:', error);
+                // 某些浏览器可能不支持，降级到直接监听
+                window.addEventListener('devicemotion', this.deviceMotionHandler, false);
+            }
+        } else if (typeof DeviceMotionEvent !== 'undefined') {
+            // 非iOS设备或旧版本iOS，直接添加监听器
+            window.addEventListener('devicemotion', this.deviceMotionHandler, false);
+            console.log('✓ 设备运动监听已启动（无需权限）');
+        } else {
+            console.log('✗ 设备不支持运动传感器');
         }
+    }
+    
+    // 显示游戏提示
+    showTip(message) {
+        // 创建临时提示元素
+        const tip = document.createElement('div');
+        tip.textContent = message;
+        tip.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            z-index: 10000;
+            pointer-events: none;
+        `;
+        document.body.appendChild(tip);
+        
+        // 2秒后移除
+        setTimeout(() => {
+            tip.remove();
+        }, 2000);
     }
 
     setupEventListeners() {
@@ -184,8 +252,15 @@ class Game {
         this.lightningSkill.lightningFlash = 0;
         this.lightningSkill.lightningBolts = [];
         
+        // 重置摇一摇检测状态
+        this.shakeDetection.isInitialized = false;
+        this.shakeDetection.lastShakeTime = 0;
+        
         // 确保移动端按钮在游戏中显示
         this.detectMobileDevice();
+        
+        // 请求设备运动权限（摇一摇功能）
+        this.requestMotionPermission();
         
         this.updateUI();
         
@@ -524,9 +599,21 @@ class Game {
     // 激活闪电清屏技能
     activateLightningSkill() {
         if (!this.lightningSkill.available || this.lightningSkill.cooldown > 0) {
-            console.log(`技能冷却中... 还需 ${Math.ceil(this.lightningSkill.cooldown / 60)} 秒`);
+            const remainingSeconds = Math.ceil(this.lightningSkill.cooldown / 60);
+            console.log(`⚡ 技能冷却中... 还需 ${remainingSeconds} 秒`);
+            // 在移动端显示提示
+            this.showTip(`⚡ 技能冷却中 (${remainingSeconds}秒)`);
             return;
         }
+        
+        // 检查是否有敌机
+        if (this.enemies.length === 0) {
+            console.log('⚡ 没有敌机可以清除');
+            this.showTip('⚡ 没有敌机');
+            return;
+        }
+        
+        console.log('⚡ 闪电技能激活！清除' + this.enemies.length + '个敌机');
         
         // 播放闪电音效
         this.audioManager.playLightning();
