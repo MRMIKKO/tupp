@@ -27,11 +27,11 @@ class Player {
         
         // 道具效果
         this.powerUps = {
-            S: { active: false, endTime: 0 },      // 三弹道
-            L: { active: false, endTime: 0 },      // 激光
-            B: { active: false, endTime: 0 },      // 爆炸弹
-            C: { active: false, endTime: 0 },      // 追踪火箭炮
-            P: { active: false, endTime: 0, level: 0 } // 强化（可叠加，最多5级）
+            S: { active: false, endTime: 0, startTime: 0 },      // 三弹道
+            L: { active: false, endTime: 0, startTime: 0 },      // 激光
+            B: { active: false, endTime: 0, startTime: 0 },      // 爆炸弹
+            C: { active: false, endTime: 0, startTime: 0 },      // 追踪火箭炮
+            P: { active: false, endTime: 0, startTime: 0, level: 0 } // 强化（可叠加，最多5级）
         };
         this.explosions = []; // 爆炸效果数组
         
@@ -915,11 +915,11 @@ class Player {
         
         // 重置道具效果
         this.powerUps = {
-            S: { active: false, endTime: 0 },
-            L: { active: false, endTime: 0 },
-            B: { active: false, endTime: 0 },
-            C: { active: false, endTime: 0 },
-            P: { active: false, endTime: 0, level: 0 }
+            S: { active: false, endTime: 0, startTime: 0 },
+            L: { active: false, endTime: 0, startTime: 0 },
+            B: { active: false, endTime: 0, startTime: 0 },
+            C: { active: false, endTime: 0, startTime: 0 },
+            P: { active: false, endTime: 0, startTime: 0, level: 0 }
         };
         this.explosions = [];
         
@@ -952,6 +952,7 @@ class Player {
                 // 强化可叠加 - 不影响其他道具
                 this.powerUps.P.active = true;
                 this.powerUps.P.level = Math.min(6, this.powerUps.P.level + 1); // 最多6级
+                this.powerUps.P.startTime = 0; // P道具无限时长，不需要startTime
                 this.powerUps.P.endTime = 0; // 无限时长
                 break;
                 
@@ -985,6 +986,7 @@ class Player {
                 
                 // 激活当前类型并设置时间
                 this.powerUps[type].active = true;
+                this.powerUps[type].startTime = now;
                 // duration为0表示无限时长，endTime设为0表示不过期
                 this.powerUps[type].endTime = duration > 0 ? now + duration : 0;
                 break;
@@ -1054,6 +1056,7 @@ class Player {
         if (this.powerUps.P.level < 6) {
             this.powerUps.P.active = true;
             this.powerUps.P.level++;
+            this.powerUps.P.startTime = 0; // P道具无限时长，不需要startTime
             this.powerUps.P.endTime = 0; // 无限时长
             
             // 显示升级提示
@@ -1074,12 +1077,12 @@ class Player {
         const now = Date.now();
         
         for (let type in this.powerUps) {
+            // P道具永不过期，跳过时间检查
+            if (type === 'P') continue;
+            
             if (this.powerUps[type].active && this.powerUps[type].endTime > 0) {
                 if (now >= this.powerUps[type].endTime) {
                     this.powerUps[type].active = false;
-                    if (type === 'P') {
-                        this.powerUps[type].level = 0;
-                    }
                 }
             }
         }

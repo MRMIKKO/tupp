@@ -145,28 +145,32 @@ class Game {
         };
     }
     
-    // 请求设备运动权限（iOS 13+需要）
-    async requestMotionPermission() {
+    // 在游戏开始前请求设备运动权限（带UI提示）
+    async requestMotionPermissionBeforeStart() {
         // 检测是否为iOS设备且需要权限请求
         if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
             try {
                 console.log('请求iOS设备运动权限...');
+                
+                // 显示加载提示
+                this.showPermissionDialog('正在请求传感器权限...');
+                
                 const permission = await DeviceMotionEvent.requestPermission();
                 console.log('权限请求结果:', permission);
                 
                 if (permission === 'granted') {
                     window.addEventListener('devicemotion', this.deviceMotionHandler, false);
                     console.log('✓ 设备运动权限已授予，摇一摇功能已启用');
-                    // 可选：显示一个简短的提示
-                    this.showTip('摇一摇功能已启用！');
+                    this.showPermissionDialog('✓ 摇一摇功能已启用', true);
                 } else {
                     console.log('✗ 设备运动权限被拒绝');
-                    this.showTip('摇一摇功能需要运动传感器权限');
+                    this.showPermissionDialog('⚠️ 摇一摇功能需要传感器权限\n游戏将继续，但摇一摇功能不可用', true);
                 }
             } catch (error) {
                 console.error('请求设备运动权限时出错:', error);
                 // 某些浏览器可能不支持，降级到直接监听
                 window.addEventListener('devicemotion', this.deviceMotionHandler, false);
+                this.showPermissionDialog('✓ 传感器已启动', true);
             }
         } else if (typeof DeviceMotionEvent !== 'undefined') {
             // 非iOS设备或旧版本iOS，直接添加监听器
@@ -177,34 +181,57 @@ class Game {
         }
     }
     
-    // 显示游戏提示
-    showTip(message) {
-        // 创建临时提示元素
-        const tip = document.createElement('div');
-        tip.textContent = message;
-        tip.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 10px;
-            font-size: 16px;
-            z-index: 10000;
-            pointer-events: none;
-        `;
-        document.body.appendChild(tip);
+    // 显示权限对话框（游戏开始前）
+    showPermissionDialog(message, autoClose = false) {
+        // 查找或创建对话框
+        let dialog = document.getElementById('permissionDialog');
+        if (!dialog) {
+            dialog = document.createElement('div');
+            dialog.id = 'permissionDialog';
+            dialog.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.95);
+                color: white;
+                padding: 25px 40px;
+                border-radius: 15px;
+                font-size: 16px;
+                z-index: 10001;
+                text-align: center;
+                min-width: 250px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+                white-space: pre-line;
+            `;
+            document.body.appendChild(dialog);
+        }
         
-        // 2秒后移除
-        setTimeout(() => {
-            tip.remove();
-        }, 2000);
+        dialog.textContent = message;
+        dialog.style.display = 'block';
+        
+        // 自动关闭
+        if (autoClose) {
+            setTimeout(() => {
+                if (dialog && dialog.parentNode) {
+                    dialog.style.opacity = '0';
+                    dialog.style.transition = 'opacity 0.3s';
+                    setTimeout(() => {
+                        if (dialog && dialog.parentNode) {
+                            dialog.remove();
+                        }
+                    }, 300);
+                }
+            }, 1500);
+        }
     }
 
     setupEventListeners() {
-        this.startBtn.addEventListener('click', () => this.startGame());
+        this.startBtn.addEventListener('click', async () => {
+            // 先请求权限，然后再开始游戏
+            await this.requestMotionPermissionBeforeStart();
+            this.startGame();
+        });
         this.restartBtn.addEventListener('click', () => this.restartGame());
         
         // 静音快捷键 + 清屏技能
@@ -258,9 +285,6 @@ class Game {
         
         // 确保移动端按钮在游戏中显示
         this.detectMobileDevice();
-        
-        // 请求设备运动权限（摇一摇功能）
-        this.requestMotionPermission();
         
         this.updateUI();
         
@@ -583,6 +607,9 @@ class Game {
         this.player.explosions.forEach(exp => exp.draw(this.ctx)); // 绘制爆炸范围
         this.particles.forEach(particle => particle.draw(this.ctx));
         
+        // 绘制弹药效果时间槽（在P槽左侧）
+        this.drawAmmoGauge();
+        
         // 绘制P槽UI
         this.drawPGauge();
         
@@ -601,15 +628,12 @@ class Game {
         if (!this.lightningSkill.available || this.lightningSkill.cooldown > 0) {
             const remainingSeconds = Math.ceil(this.lightningSkill.cooldown / 60);
             console.log(`⚡ 技能冷却中... 还需 ${remainingSeconds} 秒`);
-            // 在移动端显示提示
-            this.showTip(`⚡ 技能冷却中 (${remainingSeconds}秒)`);
             return;
         }
         
         // 检查是否有敌机
         if (this.enemies.length === 0) {
             console.log('⚡ 没有敌机可以清除');
-            this.showTip('⚡ 没有敌机');
             return;
         }
         
@@ -728,6 +752,116 @@ class Game {
                 this.lightningSkill.available = true;
             }
         }
+    }
+    
+    // 绘制弹药效果时间槽（在P槽左侧）
+    drawAmmoGauge() {
+        const x = this.canvas.width - 35; // P槽左侧（P槽在width-25，向右移10px后间隔变为0px）
+        const y = 60; // 与P槽对齐
+        const width = 6; // 更细的竖条
+        const height = 150; // 与P槽相同高度
+        const radius = 3; // 更小的圆角
+        
+        // 获取当前激活的弹药道具（S、L、B、C）
+        let activeAmmo = null;
+        let ammoProgress = 0;
+        let ammoColor = '#888888';
+        
+        const now = Date.now();
+        const ammoTypes = {
+            S: { color: '#FFD700' }, // 三弹道 - 金黄色（普通子弹颜色）
+            L: { color: '#00FFFF' }, // 激光 - 青色
+            B: { color: '#FF4500' }, // 爆炸弹 - 橙红色
+            C: { color: '#FF6600' }  // 追踪火箭炮 - 橙色
+        };
+        
+        // 查找当前激活的弹药道具
+        for (let type of ['S', 'L', 'B', 'C']) {
+            if (this.player.powerUps[type].active) {
+                const powerUp = this.player.powerUps[type];
+                const endTime = powerUp.endTime;
+                const startTime = powerUp.startTime;
+                
+                if (endTime > 0 && startTime > 0) {
+                    const totalDuration = endTime - startTime;
+                    const remaining = endTime - now;
+                    ammoProgress = Math.max(0, Math.min(1, remaining / totalDuration));
+                    ammoColor = ammoTypes[type].color;
+                    activeAmmo = type;
+                    break; // 只显示第一个激活的弹药
+                } else if (endTime === 0) {
+                    // 无限时长的道具
+                    ammoProgress = 1;
+                    ammoColor = ammoTypes[type].color;
+                    activeAmmo = type;
+                    break;
+                }
+            }
+        }
+        
+        this.ctx.save();
+        
+        // 绘制圆角矩形外框
+        this.ctx.strokeStyle = activeAmmo ? ammoColor : '#555555';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + radius, y);
+        this.ctx.lineTo(x + width - radius, y);
+        this.ctx.arcTo(x + width, y, x + width, y + radius, radius);
+        this.ctx.lineTo(x + width, y + height - radius);
+        this.ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+        this.ctx.lineTo(x + radius, y + height);
+        this.ctx.arcTo(x, y + height, x, y + height - radius, radius);
+        this.ctx.lineTo(x, y + radius);
+        this.ctx.arcTo(x, y, x + radius, y, radius);
+        this.ctx.closePath();
+        this.ctx.stroke();
+        
+        // 背景
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        this.ctx.fill();
+        
+        // 弹药时间进度条（从下往上填充）
+        if (ammoProgress > 0 && activeAmmo) {
+            const fillHeight = height * ammoProgress;
+            const fillY = y + height - fillHeight;
+            
+            this.ctx.save();
+            this.ctx.beginPath();
+            this.ctx.moveTo(x + radius, y);
+            this.ctx.lineTo(x + width - radius, y);
+            this.ctx.arcTo(x + width, y, x + width, y + radius, radius);
+            this.ctx.lineTo(x + width, y + height - radius);
+            this.ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+            this.ctx.lineTo(x + radius, y + height);
+            this.ctx.arcTo(x, y + height, x, y + height - radius, radius);
+            this.ctx.lineTo(x, y + radius);
+            this.ctx.arcTo(x, y, x + radius, y, radius);
+            this.ctx.closePath();
+            this.ctx.clip();
+            
+            // 渐变效果
+            const gradient = this.ctx.createLinearGradient(x, y + height, x, fillY);
+            const baseColor = ammoColor;
+            gradient.addColorStop(0, baseColor);
+            gradient.addColorStop(0.5, baseColor + 'CC'); // 半透明
+            gradient.addColorStop(1, baseColor + '99'); // 更透明
+            
+            this.ctx.fillStyle = gradient;
+            this.ctx.fillRect(x, fillY, width, fillHeight);
+            
+            // 闪烁效果（剩余时间<20%时）
+            if (ammoProgress < 0.2) {
+                const flash = Math.sin(Date.now() / 100) * 0.5 + 0.5;
+                this.ctx.shadowBlur = 10 * flash;
+                this.ctx.shadowColor = ammoColor;
+                this.ctx.fillRect(x, fillY, width, fillHeight);
+            }
+            
+            this.ctx.restore();
+        }
+        
+        this.ctx.restore();
     }
     
     // 绘制P槽UI
