@@ -145,15 +145,12 @@ class Game {
         };
     }
     
-    // 在游戏开始前请求设备运动权限（带UI提示）
+    // 在游戏开始前请求设备运动权限（静默处理，不显示UI提示）
     async requestMotionPermissionBeforeStart() {
         // 检测是否为iOS设备且需要权限请求
         if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
             try {
                 console.log('请求iOS设备运动权限...');
-                
-                // 显示加载提示
-                this.showPermissionDialog('正在请求传感器权限...');
                 
                 const permission = await DeviceMotionEvent.requestPermission();
                 console.log('权限请求结果:', permission);
@@ -161,16 +158,13 @@ class Game {
                 if (permission === 'granted') {
                     window.addEventListener('devicemotion', this.deviceMotionHandler, false);
                     console.log('✓ 设备运动权限已授予，摇一摇功能已启用');
-                    this.showPermissionDialog('✓ 摇一摇功能已启用', true);
                 } else {
                     console.log('✗ 设备运动权限被拒绝');
-                    this.showPermissionDialog('⚠️ 摇一摇功能需要传感器权限\n游戏将继续，但摇一摇功能不可用', true);
                 }
             } catch (error) {
                 console.error('请求设备运动权限时出错:', error);
                 // 某些浏览器可能不支持，降级到直接监听
                 window.addEventListener('devicemotion', this.deviceMotionHandler, false);
-                this.showPermissionDialog('✓ 传感器已启动', true);
             }
         } else if (typeof DeviceMotionEvent !== 'undefined') {
             // 非iOS设备或旧版本iOS，直接添加监听器
@@ -178,51 +172,6 @@ class Game {
             console.log('✓ 设备运动监听已启动（无需权限）');
         } else {
             console.log('✗ 设备不支持运动传感器');
-        }
-    }
-    
-    // 显示权限对话框（游戏开始前）
-    showPermissionDialog(message, autoClose = false) {
-        // 查找或创建对话框
-        let dialog = document.getElementById('permissionDialog');
-        if (!dialog) {
-            dialog = document.createElement('div');
-            dialog.id = 'permissionDialog';
-            dialog.style.cssText = `
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                background: rgba(0, 0, 0, 0.95);
-                color: white;
-                padding: 25px 40px;
-                border-radius: 15px;
-                font-size: 16px;
-                z-index: 10001;
-                text-align: center;
-                min-width: 250px;
-                box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-                white-space: pre-line;
-            `;
-            document.body.appendChild(dialog);
-        }
-        
-        dialog.textContent = message;
-        dialog.style.display = 'block';
-        
-        // 自动关闭
-        if (autoClose) {
-            setTimeout(() => {
-                if (dialog && dialog.parentNode) {
-                    dialog.style.opacity = '0';
-                    dialog.style.transition = 'opacity 0.3s';
-                    setTimeout(() => {
-                        if (dialog && dialog.parentNode) {
-                            dialog.remove();
-                        }
-                    }, 300);
-                }
-            }, 1500);
         }
     }
 
