@@ -34,6 +34,15 @@ class Bullet {
     }
 
     update(enemies = []) {
+        // 处理延迟发射
+        if (this.spawnDelay !== undefined && this.spawnDelay > 0) {
+            this.spawnDelay--;
+            if (this.spawnDelay === 0) {
+                this.active = true; // 延迟结束，激活子弹
+            }
+            return; // 延迟期间不移动
+        }
+        
         if (this.isPlayerBullet) {
             // 追踪逻辑（仅对蓄力追踪弹有效）
             if (this.isHoming && this.isCharged && enemies && enemies.length > 0) {

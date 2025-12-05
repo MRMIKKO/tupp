@@ -418,28 +418,78 @@ class Player {
             }
             
         } else if (this.powerUps.C.active) {
-            // C - 追踪火箭炮模式：固定数量，P等级只增加威力
+            // C - 追踪火箭炮模式：根据P等级增加火箭数量、威力和追踪能力
             const pLevel = this.powerUps.P.level;
-            const rocketCount = 1; // 固定1发火箭，避免卡顿
+            
+            // P等级决定火箭数量（渐进式增加）
+            let rocketCount = 1; // P0: 1发
+            if (pLevel >= 2) rocketCount = 2; // P2: 2发
+            if (pLevel >= 4) rocketCount = 3; // P4: 3发
+            if (pLevel >= 6) rocketCount = 4; // P6: 4发
+            
+            // P等级影响火箭属性
+            const baseDamage = 2.5; // 基础伤害
+            const damagePerLevel = 0.8; // 每级增加的伤害
+            const baseHoming = 0.12; // 基础追踪强度
+            const homingPerLevel = 0.02; // 每级增加的追踪强度
+            const baseSpeed = 7; // 基础速度
+            const speedPerLevel = 0.3; // 每级增加的速度
             
             for (let i = 0; i < rocketCount; i++) {
                 let offsetX = 0;
-                if (rocketCount > 1) {
-                    // 多发火箭从左到右排列
-                    const spacing = 15;
-                    offsetX = (i - (rocketCount - 1) / 2) * spacing;
+                let offsetY = 0;
+                let delayFrames = 0; // 发射延迟（帧数）
+                
+                if (rocketCount === 1) {
+                    // 单发：居中
+                    offsetX = 0;
+                } else if (rocketCount === 2) {
+                    // 双发：左右分布
+                    offsetX = (i === 0) ? -12 : 12;
+                } else if (rocketCount === 3) {
+                    // 三发：中心+左右
+                    if (i === 0) offsetX = 0;
+                    else if (i === 1) offsetX = -15;
+                    else offsetX = 15;
+                } else if (rocketCount === 4) {
+                    // 四发：两排
+                    if (i < 2) {
+                        // 前排
+                        offsetX = (i === 0) ? -12 : 12;
+                        offsetY = 0;
+                    } else {
+                        // 后排（稍微延迟发射）
+                        offsetX = (i === 2) ? -12 : 12;
+                        offsetY = 10;
+                        delayFrames = 3; // 延迟3帧
+                    }
                 }
                 
-                const rocket = new Bullet(centerX + offsetX, centerY, 8, true, this.canvasHeight);
-                rocket.damage = 3 + pLevel * 1.2; // P等级只增加威力，不增加数量
-                rocket.size = 8;
-                rocket.penetrating = false;
-                rocket.isHoming = true; // 开启追踪
-                rocket.homingStrength = 0.15; // 追踪强度
-                rocket.isCharged = true; // 标记为蓄力弹以启用追踪逻辑
-                rocket.isMissile = true; // 标记为火箭（用于绘制）
+                const rocket = new Bullet(
+                    centerX + offsetX, 
+                    centerY + offsetY, 
+                    baseSpeed + speedPerLevel * pLevel, 
+                    true, 
+                    this.canvasHeight
+                );
+                
+                // 属性随P等级增强
+                rocket.damage = baseDamage + damagePerLevel * pLevel;
+                rocket.size = 8 + pLevel * 0.5; // 火箭大小也会增长
+                rocket.penetrating = pLevel >= 5; // P5+具有穿透能力
+                rocket.isHoming = true;
+                rocket.homingStrength = baseHoming + homingPerLevel * pLevel; // 追踪强度提升
+                rocket.isCharged = true;
+                rocket.isMissile = true;
                 rocket.speedX = 0;
-                rocket.speedY = -8;
+                rocket.speedY = -(baseSpeed + speedPerLevel * pLevel);
+                
+                // 如果有延迟，添加延迟标记
+                if (delayFrames > 0) {
+                    rocket.spawnDelay = delayFrames;
+                    rocket.active = false; // 先设为不活跃，延迟后再激活
+                }
+                
                 this.bullets.push(rocket);
             }
             
