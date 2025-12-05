@@ -33,6 +33,7 @@ class Player {
             C: { active: false, endTime: 0, startTime: 0 },      // 追踪火箭炮
             P: { active: false, endTime: 0, startTime: 0, level: 0 } // 强化（可叠加，最多5级）
         };
+        this.lastWeaponType = null; // 记录最后激活的弹药类型（用于判断是否切换）
         this.explosions = []; // 爆炸效果数组
         
         // P槽存储机制
@@ -1030,19 +1031,22 @@ class Player {
             case 'B':
             case 'C':
                 // 弹道类型道具 - 互斥，切换时重置其他弹道类型
-                // 检查是否是相同类型（重置时间）
-                const isSameType = this.powerUps[type].active;
+                // 检查是否切换了不同的弹药类型（而不是检查active状态）
+                const isSameType = (this.lastWeaponType === type);
                 
                 // 如果切换了不同的弹道类型，重置P强化效果
                 // 但如果处于低血量P提升状态，则保持满级不重置
-                if (!isSameType && !this.lowHealthPBoost) {
+                if (!isSameType && this.lastWeaponType !== null && !this.lowHealthPBoost) {
                     this.powerUps.P.active = false;
                     this.powerUps.P.level = 0;
-                } else if (!isSameType && this.lowHealthPBoost) {
+                } else if (!isSameType && this.lastWeaponType !== null && this.lowHealthPBoost) {
                     // 红血状态下切换弹药，更新保存的P等级为0
                     this.savedPLevel = 0;
                     // 保持P满级不变
                 }
+                
+                // 记录当前弹药类型
+                this.lastWeaponType = type;
                 
                 // 先关闭其他弹道类型
                 this.powerUps.S.active = false;
