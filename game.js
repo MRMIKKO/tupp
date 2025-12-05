@@ -41,7 +41,6 @@ class Game {
         this.difficulty = 1;
         this.difficultyTimer = 0; // 难度计时器
         this.difficultyIncreaseInterval = 600; // 每10秒增加难度（60fps * 10）
-        this.maxDifficulty = 20; // 最大难度等级
         
         // 背景
         this.clouds = [];
@@ -277,11 +276,8 @@ class Game {
         // 难度系统 - 每10秒自动提升难度
         this.difficultyTimer++;
         if (this.difficultyTimer >= this.difficultyIncreaseInterval) {
-            if (this.difficulty < this.maxDifficulty) {
-                this.difficulty++;
-                
-                this.updateUI();
-            }
+            this.difficulty++;
+            this.updateUI();
             this.difficultyTimer = 0;
         }
 
@@ -382,7 +378,7 @@ class Game {
 
         // 碰撞检测 - 玩家子弹击中敌机
         this.player.bullets.forEach(bullet => {
-            if (!bullet.active) return;
+            if (!bullet.active || bullet.isVisible === false) return; // 跳过不活跃或不可见的子弹
             
             this.enemies.forEach(enemy => {
                 if (this.checkCollision(bullet, enemy)) {
@@ -440,6 +436,31 @@ class Game {
                             bullet.bombDamage || 1
                         );
                         this.player.explosions.push(explosion);
+                        
+                        // P3+: 爆炸时向周围发射穿透碎片（防御后方敌机）
+                        if (bullet.bombPLevel >= 3) {
+                            const fragmentCount = 12; // 12个方向（更密集）
+                            const fragmentSpeed = 8; // 碎片速度（更快）
+                            const fragmentDamage = 0.5 + bullet.bombPLevel * 0.2; // 碎片伤害
+                            
+                            for (let i = 0; i < fragmentCount; i++) {
+                                const angle = (Math.PI * 2 * i) / fragmentCount; // 均匀分布
+                                const fragment = new Bullet(
+                                    enemy.x + enemy.width / 2,
+                                    enemy.y + enemy.height / 2,
+                                    fragmentSpeed,
+                                    true,
+                                    this.canvas.height
+                                );
+                                fragment.damage = fragmentDamage;
+                                fragment.size = 8; // 增大碎片（原来是4）
+                                fragment.penetrating = true; // 可穿透
+                                fragment.isFragment = true; // 标记为碎片
+                                fragment.speedX = Math.cos(angle) * fragmentSpeed;
+                                fragment.speedY = Math.sin(angle) * fragmentSpeed;
+                                this.player.bullets.push(fragment);
+                            }
+                        }
                         
                         if (!enemyDestroyed) {
                             // 击中但未摧毁也播放爆炸音效

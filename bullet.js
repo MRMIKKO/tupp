@@ -8,6 +8,7 @@ class Bullet {
         this.speed = speed;
         this.isPlayerBullet = isPlayerBullet;
         this.active = true;
+        this.isVisible = true; // 默认可见
         this.canvasHeight = canvasHeight;
         
         // 蓄力子弹属性
@@ -38,9 +39,9 @@ class Bullet {
         if (this.spawnDelay !== undefined && this.spawnDelay > 0) {
             this.spawnDelay--;
             if (this.spawnDelay === 0) {
-                this.active = true; // 延迟结束，激活子弹
+                this.isVisible = true; // 延迟结束，显示子弹
             }
-            return; // 延迟期间不移动
+            return; // 延迟期间不移动，也不参与碰撞
         }
         
         if (this.isPlayerBullet) {
@@ -110,6 +111,9 @@ class Bullet {
     }
 
     draw(ctx) {
+        // 如果子弹不可见（延迟发射中），不绘制
+        if (this.isVisible === false) return;
+        
         ctx.save();
         
         if (this.isPlayerBullet) {
@@ -157,6 +161,75 @@ class Bullet {
                     ctx.arc(px, py, 1, 0, Math.PI * 2);
                     ctx.fill();
                 }
+                
+            } else if (this.isFragment) {
+                // 碎片效果 - 锋利的橙色碎片，更大更显眼
+                const size = this.size || 8;
+                
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#FF6600';
+                
+                // 计算碎片飞行角度（基于速度方向）
+                const angle = Math.atan2(this.speedY, this.speedX);
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(angle);
+                
+                // 拖尾效果
+                const tailLength = 15;
+                const tailGradient = ctx.createLinearGradient(0, 0, -tailLength, 0);
+                tailGradient.addColorStop(0, 'rgba(255, 102, 0, 0.8)');
+                tailGradient.addColorStop(0.5, 'rgba(255, 102, 0, 0.4)');
+                tailGradient.addColorStop(1, 'rgba(255, 102, 0, 0)');
+                
+                ctx.fillStyle = tailGradient;
+                ctx.beginPath();
+                ctx.moveTo(0, -size * 0.4);
+                ctx.lineTo(-tailLength, -size * 0.2);
+                ctx.lineTo(-tailLength, size * 0.2);
+                ctx.lineTo(0, size * 0.4);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 碎片主体 - 菱形/三角状
+                const gradient = ctx.createLinearGradient(-size, 0, size * 2, 0);
+                gradient.addColorStop(0, 'rgba(255, 102, 0, 0.5)');
+                gradient.addColorStop(0.3, '#FF6600');
+                gradient.addColorStop(0.7, '#FF9900');
+                gradient.addColorStop(1, '#FFAA00');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.moveTo(size * 2, 0); // 尖端
+                ctx.lineTo(0, -size * 0.7); // 左上
+                ctx.lineTo(-size * 0.8, 0); // 左边
+                ctx.lineTo(0, size * 0.7); // 左下
+                ctx.closePath();
+                ctx.fill();
+                
+                // 边缘高光
+                ctx.strokeStyle = 'rgba(255, 255, 200, 0.9)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(size * 2, 0);
+                ctx.lineTo(0, -size * 0.7);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(size * 2, 0);
+                ctx.lineTo(0, size * 0.7);
+                ctx.stroke();
+                
+                // 核心高光
+                ctx.fillStyle = '#FFFFAA';
+                ctx.beginPath();
+                ctx.moveTo(size * 1.5, 0);
+                ctx.lineTo(size * 0.5, -size * 0.3);
+                ctx.lineTo(size * 0.5, size * 0.3);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.restore();
                 
             } else if (this.isMissile) {
                 // 追踪火箭效果 - 橙红色火箭

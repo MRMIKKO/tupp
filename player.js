@@ -393,6 +393,7 @@ class Player {
                 bullet.isBomb = true;
                 bullet.bombRadius = 200;
                 bullet.bombDamage = 2.5;
+                bullet.bombPLevel = pLevel; // 记录P等级，用于碎片效果
                 bullet.speedX = 0;
                 bullet.speedY = -10;
                 this.bullets.push(bullet);
@@ -410,6 +411,7 @@ class Player {
                     bullet.isBomb = true;
                     bullet.bombRadius = 200;
                     bullet.bombDamage = 2.5;
+                    bullet.bombPLevel = pLevel; // 记录P等级，用于碎片效果
                     bullet.angle = angle;
                     bullet.speedX = Math.sin(angle) * baseSpeed * 0.6;
                     bullet.speedY = -Math.cos(angle) * baseSpeed;
@@ -439,28 +441,40 @@ class Player {
                 let offsetX = 0;
                 let offsetY = 0;
                 let delayFrames = 0; // 发射延迟（帧数）
+                let angleOffset = 0; // 发射角度偏移
                 
                 if (rocketCount === 1) {
                     // 单发：居中
                     offsetX = 0;
+                    angleOffset = 0;
                 } else if (rocketCount === 2) {
                     // 双发：左右分布
                     offsetX = (i === 0) ? -12 : 12;
+                    angleOffset = (i === 0) ? -0.15 : 0.15; // 左右8.6度
                 } else if (rocketCount === 3) {
                     // 三发：中心+左右
-                    if (i === 0) offsetX = 0;
-                    else if (i === 1) offsetX = -15;
-                    else offsetX = 15;
+                    if (i === 0) {
+                        offsetX = 0;
+                        angleOffset = 0;
+                    } else if (i === 1) {
+                        offsetX = -15;
+                        angleOffset = -0.2; // 左11.5度
+                    } else {
+                        offsetX = 15;
+                        angleOffset = 0.2; // 右11.5度
+                    }
                 } else if (rocketCount === 4) {
                     // 四发：两排
                     if (i < 2) {
                         // 前排
                         offsetX = (i === 0) ? -12 : 12;
                         offsetY = 0;
+                        angleOffset = (i === 0) ? -0.15 : 0.15;
                     } else {
                         // 后排（稍微延迟发射）
                         offsetX = (i === 2) ? -12 : 12;
                         offsetY = 10;
+                        angleOffset = (i === 2) ? -0.15 : 0.15;
                         delayFrames = 3; // 延迟3帧
                     }
                 }
@@ -481,13 +495,18 @@ class Player {
                 rocket.homingStrength = baseHoming + homingPerLevel * pLevel; // 追踪强度提升
                 rocket.isCharged = true;
                 rocket.isMissile = true;
-                rocket.speedX = 0;
-                rocket.speedY = -(baseSpeed + speedPerLevel * pLevel);
+                
+                // 根据角度偏移计算速度分量
+                const speed = baseSpeed + speedPerLevel * pLevel;
+                rocket.speedX = speed * Math.sin(angleOffset);
+                rocket.speedY = -speed * Math.cos(angleOffset);
                 
                 // 如果有延迟，添加延迟标记
                 if (delayFrames > 0) {
                     rocket.spawnDelay = delayFrames;
-                    rocket.active = false; // 先设为不活跃，延迟后再激活
+                    rocket.isVisible = false; // 延迟期间不可见，但active保持true
+                } else {
+                    rocket.isVisible = true;
                 }
                 
                 this.bullets.push(rocket);
