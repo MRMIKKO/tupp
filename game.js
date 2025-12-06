@@ -32,7 +32,8 @@ class Game {
             cooldown: 0,
             maxCooldown: 300, // 5秒冷却（60fps * 5）
             lightningFlash: 0,
-            lightningBolts: []
+            lightningBolts: [],
+            cooldownAttempts: 0 // 冷却期间尝试次数（彩蛋）
         };
         
         // 敌机生成
@@ -45,11 +46,18 @@ class Game {
         // 后方敌机预警系统
         this.rearWarnings = []; // 预警标记数组 {x, y, timer, maxTimer}
         
+        // B弹碎片控制器（每帧最多2个爆炸产生碎片）
+        this.fragmentSpawnControl = {
+            frameCount: 0,
+            maxPerFrame: 2 // 每帧最多2个爆炸产生碎片
+        };
+        
         // 性能优化配置
         this.maxEnemies = 30; // 屏幕上最大敌机数量
         this.maxBullets = 150; // 最大子弹数量（玩家+敌机）
         this.maxParticles = 100; // 最大粒子数量
         this.maxPowerUps = 8; // 最大道具数量
+        this.maxFragments = 40; // 最大碎片数量（B弹P3+专用）
         
         // 背景
         this.clouds = [];
@@ -235,6 +243,7 @@ class Game {
         this.lightningSkill.cooldown = 0;
         this.lightningSkill.lightningFlash = 0;
         this.lightningSkill.lightningBolts = [];
+        this.lightningSkill.cooldownAttempts = 0; // 重置彩蛋计数器
         
         // 重置摇一摇检测状态
         this.shakeDetection.isInitialized = false;
@@ -270,6 +279,9 @@ class Game {
     }
 
     update() {
+        // 重置每帧碎片生成计数器
+        this.fragmentSpawnControl.frameCount = 0;
+        
         // 更新背景云
         this.clouds.forEach(cloud => {
             cloud.y += cloud.speed;
@@ -382,6 +394,13 @@ class Game {
             return bullet.active;
         });
         
+        // 性能优化：定期清理超限的碎片（优先清理最老的碎片）
+        const currentFragments = this.player.bullets.filter(b => b.isFragment);
+        if (currentFragments.length > this.maxFragments) {
+            const fragmentsToRemove = currentFragments.slice(0, currentFragments.length - this.maxFragments);
+            fragmentsToRemove.forEach(frag => frag.active = false);
+        }
+        
         // 更新道具
         this.powerUps = this.powerUps.filter(powerUp => {
             powerUp.update();
@@ -399,45 +418,52 @@ class Game {
         // 更新玩家道具效果
         this.player.updatePowerUps();
         
-        // 更新爆炸范围伤害
-        this.player.explosions.forEach(explosion => {
-            this.enemies.forEach(enemy => {
-                if (explosion.checkEnemyInRange(enemy)) {
-                    // 应用爆炸伤害倍数
-                    const explosionDamage = explosion.damage || 1;
-                    for (let i = 0; i < explosionDamage; i++) {
-                        if (enemy.hit()) {
-                            this.score += enemy.score;
-                            this.kills++;
-                            
-                            // 增加经验值（击杀敌机）- 随难度递减以平衡游戏
-                            // 难度1: 10, 难度5: 8, 难度10: 6, 难度15: 4, 难度20+: 3
-                            const expIncrease = Math.max(3, 10 - Math.floor(this.difficulty / 3));
-                            this.player.addExp(expIncrease);
-                            
-                            // 增加P槽值（击杀敌机）- 随难度递减，但速度比经验慢
-                            // 难度1: 10, 难度10: 8, 难度20: 6, 难度30+: 5
-                            const pGaugeIncrease = Math.max(5, 10 - Math.floor(this.difficulty / 5));
-                            this.player.addPGauge(pGaugeIncrease);
-                            
-                            enemy.health = 0;
-                            
-                            // B弹P3+击杀时不显示彩色爆炸效果（已有碎片效果）
-                            if (explosion.pLevel < 3) {
-                                this.createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#FFA500', false);
+        // 更新爆炸范围伤害（性能优化：每2帧检测一次）
+        if (!this.explosionCheckFrame) this.explosionCheckFrame = 0;
+        this.explosionCheckFrame++;
+        
+        if (this.explosionCheckFrame % 2 === 0) {
+            this.player.explosions.forEach(explosion => {
+                this.enemies.forEach(enemy => {
+                    if (explosion.checkEnemyInRange(enemy)) {
+                        // 应用爆炸伤害倍数
+                        const explosionDamage = explosion.damage || 1;
+                        for (let i = 0; i < explosionDamage; i++) {
+                            if (enemy.hit()) {
+                                this.score += enemy.score;
+                                this.kills++;
+                                
+                                // 增加经验值（击杀敌机）- 随难度递减以平衡游戏
+                                // 难度1: 10, 难度5: 8, 难度10: 6, 难度15: 4, 难度20+: 3
+                                const expIncrease = Math.max(3, 10 - Math.floor(this.difficulty / 3));
+                                this.player.addExp(expIncrease);
+                                
+                                // 增加P槽值（击杀敌机）- 随难度递减，但速度比经验慢
+                                // 难度1: 10, 难度10: 8, 难度20: 6, 难度30+: 5
+                                const pGaugeIncrease = Math.max(5, 10 - Math.floor(this.difficulty / 5));
+                                this.player.addPGauge(pGaugeIncrease);
+                                
+                                enemy.health = 0;
+                                
+                                // B弹P3+击杀时不显示彩色爆炸效果（已有碎片效果）
+                                if (explosion.pLevel < 3) {
+                                    this.createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#FFA500', false);
+                                }
+                                break;
                             }
-                            break;
                         }
                     }
-                }
+                });
             });
-        });
+        }
 
-        // 碰撞检测 - 玩家子弹击中敌机
+        // 碰撞检测 - 玩家子弹击中敌机（性能优化：跳过已销毁的敌机）
         this.player.bullets.forEach(bullet => {
             if (!bullet.active || bullet.isVisible === false) return; // 跳过不活跃或不可见的子弹
             
             this.enemies.forEach(enemy => {
+                if (enemy.health <= 0) return; // 跳过已销毁的敌机
+                
                 if (this.checkCollision(bullet, enemy)) {
                     // 如果是爆炸弹，无论击杀与否都产生爆炸
                     const shouldExplode = bullet.isBomb;
@@ -505,29 +531,40 @@ class Game {
                         this.player.explosions.push(explosion);
                         
                         // P3+: 爆炸时向周围发射穿透碎片（防御后方敌机）
-                        if (bullet.bombPLevel >= 3) {
-                            // 性能优化：限制碎片数量
-                            const availableSlots = this.maxBullets - (this.player.bullets.length + this.enemyBullets.length);
-                            const fragmentCount = Math.min(12, availableSlots); // 最多12个方向
-                            const fragmentSpeed = 8; // 碎片速度（更快）
-                            const fragmentDamage = 0.5 + bullet.bombPLevel * 0.2; // 碎片伤害
+                        // 性能优化：每帧最多2个爆炸产生碎片，随机选择
+                        if (bullet.bombPLevel >= 3 && this.fragmentSpawnControl.frameCount < this.fragmentSpawnControl.maxPerFrame) {
+                            // 统计当前碎片数量
+                            const currentFragments = this.player.bullets.filter(b => b.isFragment).length;
+                            const availableFragmentSlots = this.maxFragments - currentFragments;
                             
-                            for (let i = 0; i < fragmentCount; i++) {
-                                const angle = (Math.PI * 2 * i) / 12; // 保持均匀分布（基于12）
-                                const fragment = new Bullet(
-                                    enemy.x + enemy.width / 2,
-                                    enemy.y + enemy.height / 2,
-                                    fragmentSpeed,
-                                    true,
-                                    this.canvas.height
-                                );
-                                fragment.damage = fragmentDamage;
-                                fragment.size = 8; // 增大碎片（原来是4）
-                                fragment.penetrating = true; // 可穿透
-                                fragment.isFragment = true; // 标记为碎片
-                                fragment.speedX = Math.cos(angle) * fragmentSpeed;
-                                fragment.speedY = Math.sin(angle) * fragmentSpeed;
-                                this.player.bullets.push(fragment);
+                            // 只在碎片数量未超限时生成
+                            if (availableFragmentSlots > 0) {
+                                const availableSlots = this.maxBullets - (this.player.bullets.length + this.enemyBullets.length);
+                                // 保持12个方向的碎片
+                                const fragmentCount = Math.min(12, availableSlots, availableFragmentSlots);
+                                const fragmentSpeed = 8; // 碎片速度
+                                const fragmentDamage = 0.5 + bullet.bombPLevel * 0.2; // 碎片伤害
+                                
+                                for (let i = 0; i < fragmentCount; i++) {
+                                    const angle = (Math.PI * 2 * i) / 12; // 12个方向均匀分布
+                                    const fragment = new Bullet(
+                                        enemy.x + enemy.width / 2,
+                                        enemy.y + enemy.height / 2,
+                                        fragmentSpeed,
+                                        true,
+                                        this.canvas.height
+                                    );
+                                    fragment.damage = fragmentDamage;
+                                    fragment.size = 6; // 碎片大小
+                                    fragment.penetrating = true; // 可穿透
+                                    fragment.isFragment = true; // 标记为碎片
+                                    fragment.speedX = Math.cos(angle) * fragmentSpeed;
+                                    fragment.speedY = Math.sin(angle) * fragmentSpeed;
+                                    this.player.bullets.push(fragment);
+                                }
+                                
+                                // 增加本帧碎片生成计数
+                                this.fragmentSpawnControl.frameCount++;
                             }
                         }
                         
@@ -674,7 +711,23 @@ class Game {
     activateLightningSkill() {
         if (!this.lightningSkill.available || this.lightningSkill.cooldown > 0) {
             const remainingSeconds = Math.ceil(this.lightningSkill.cooldown / 60);
-            console.log(`⚡ 技能冷却中... 还需 ${remainingSeconds} 秒`);
+            
+            // 彩蛋：冷却期间尝试触发
+            this.lightningSkill.cooldownAttempts++;
+            console.log(`⚡ 技能冷却中... 还需 ${remainingSeconds} 秒 (尝试: ${this.lightningSkill.cooldownAttempts}/3)`);
+            
+            // 彩蛋触发：冷却期间尝试3次
+            if (this.lightningSkill.cooldownAttempts >= 3) {
+                this.difficulty += 5;
+                this.lightningSkill.cooldownAttempts = 0; // 重置计数
+                this.updateUI();
+                
+                console.log('🎉 彩蛋触发！难度+10！当前难度：' + this.difficulty);
+                
+                // 视觉提示：屏幕闪烁
+                this.lightningSkill.lightningFlash = 15;
+            }
+            
             return;
         }
         
@@ -720,6 +773,7 @@ class Game {
         // 开始冷却
         this.lightningSkill.cooldown = this.lightningSkill.maxCooldown;
         this.lightningSkill.available = false;
+        this.lightningSkill.cooldownAttempts = 0; // 重置冷却尝试计数
         
         this.updateUI();
     }
@@ -1249,14 +1303,14 @@ class Game {
             return;
         }
         
-        // 性能优化：限制粒子数量
+        // 性能优化：限制粒子数量，减少爆炸粒子
         const availableSlots = this.maxParticles - this.particles.length;
         if (availableSlots <= 0) return;
         
-        const particleCount = Math.min(availableSlots, 45); // 原本45个粒子
-        const mainCount = Math.min(Math.floor(particleCount * 0.44), 20); // 20个主色
-        const goldCount = Math.min(Math.floor(particleCount * 0.33), 15); // 15个金色
-        const whiteCount = Math.min(particleCount - mainCount - goldCount, 10); // 10个白色
+        const particleCount = Math.min(availableSlots, 30); // 从45减到30
+        const mainCount = Math.min(Math.floor(particleCount * 0.44), 13); // 从20减到13
+        const goldCount = Math.min(Math.floor(particleCount * 0.33), 10); // 从15减到10
+        const whiteCount = Math.min(particleCount - mainCount - goldCount, 7); // 从10减到7
         
         for (let i = 0; i < mainCount; i++) {
             this.particles.push(new Particle(x, y, color));
