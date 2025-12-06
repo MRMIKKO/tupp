@@ -380,13 +380,24 @@ class Player {
             }
             
         } else if (this.powerUps.B.active) {
-            // B - 爆炸弹模式：根据P等级增加弹道数量
+            // B - 爆炸弹模式：根据P等级增加弹道数量（米字型对称增长）
             const pLevel = this.powerUps.P.level;
-            const bulletCount = Math.min(6, 1 + pLevel); // 1-6发爆炸弹
             
-            if (bulletCount === 1) {
-                // 单发直线
-                const bullet = new Bullet(centerX, centerY, 10, true, this.canvasHeight);
+            // 定义米字型弹道的角度（-Math.PI/2 为正上方）
+            // 优先前方，然后向周围对称扩展
+            const ricePatternAngles = [
+                [-Math.PI / 2],                                              // P0: 1发 - 正上
+                [-Math.PI / 2, -Math.PI / 4, -3 * Math.PI / 4],             // P1: 3发 - 上+左上+右上（对称）
+                [-Math.PI / 2, -Math.PI / 4, -3 * Math.PI / 4, 0, Math.PI], // P2: 5发 - 前3+左+右（对称）
+                [-Math.PI / 2, -Math.PI / 4, -3 * Math.PI / 4, 0, Math.PI, Math.PI / 4, 3 * Math.PI / 4], // P3: 7发 - 前5+左下+右下（对称）
+                [-Math.PI / 2, -Math.PI / 4, -3 * Math.PI / 4, 0, Math.PI, Math.PI / 4, 3 * Math.PI / 4, Math.PI / 2], // P4: 8发 - 完整米字型
+            ];
+            
+            const angles = ricePatternAngles[Math.min(pLevel, ricePatternAngles.length - 1)];
+            const baseSpeed = 10;
+            
+            angles.forEach(angle => {
+                const bullet = new Bullet(centerX, centerY, baseSpeed, true, this.canvasHeight);
                 bullet.damage = 1 + pLevel * 0.5;
                 bullet.size = 10;
                 bullet.penetrating = false;
@@ -395,30 +406,11 @@ class Player {
                 bullet.bombRadius = 200;
                 bullet.bombDamage = 2.5;
                 bullet.bombPLevel = pLevel; // 记录P等级，用于碎片效果
-                bullet.speedX = 0;
-                bullet.speedY = -10;
+                bullet.angle = angle;
+                bullet.speedX = Math.cos(angle) * baseSpeed;
+                bullet.speedY = Math.sin(angle) * baseSpeed;
                 this.bullets.push(bullet);
-            } else {
-                // 多发散射
-                const angles = this.calculateAngles(bulletCount);
-                const baseSpeed = 10;
-                
-                angles.forEach(angle => {
-                    const bullet = new Bullet(centerX, centerY, baseSpeed, true, this.canvasHeight);
-                    bullet.damage = 1 + pLevel * 0.5;
-                    bullet.size = 10;
-                    bullet.penetrating = false;
-                    bullet.isHoming = false;
-                    bullet.isBomb = true;
-                    bullet.bombRadius = 200;
-                    bullet.bombDamage = 2.5;
-                    bullet.bombPLevel = pLevel; // 记录P等级，用于碎片效果
-                    bullet.angle = angle;
-                    bullet.speedX = Math.sin(angle) * baseSpeed * 0.6;
-                    bullet.speedY = -Math.cos(angle) * baseSpeed;
-                    this.bullets.push(bullet);
-                });
-            }
+            });
             
         } else if (this.powerUps.C.active) {
             // C - 追踪火箭炮模式：根据P等级增加火箭数量、威力和追踪能力

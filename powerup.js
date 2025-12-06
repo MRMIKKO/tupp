@@ -83,8 +83,8 @@ class PowerUp {
         
         // 随机选择道具类型
         const types = Object.keys(POWERUP_TYPES);
-        const weights = [25, 15, 18, 21, 8, 13]; // S, L, B, C, HP, P 的权重（HP降低到8%）
-        const randomValue = Math.random() * 100;
+        const weights = [12.5, 7.5, 9, 10.5, 4, 6.5]; // S, L, B, C, HP, P 的权重（整体减少50%）
+        const randomValue = Math.random() * 50; // 总权重从100减少到50
         let cumulative = 0;
         let selectedType = 'S';
         

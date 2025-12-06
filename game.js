@@ -42,6 +42,15 @@ class Game {
         this.difficultyTimer = 0; // 难度计时器
         this.difficultyIncreaseInterval = 600; // 每10秒增加难度（60fps * 10）
         
+        // 后方敌机预警系统
+        this.rearWarnings = []; // 预警标记数组 {x, y, timer, maxTimer}
+        
+        // 性能优化配置
+        this.maxEnemies = 30; // 屏幕上最大敌机数量
+        this.maxBullets = 150; // 最大子弹数量（玩家+敌机）
+        this.maxParticles = 100; // 最大粒子数量
+        this.maxPowerUps = 8; // 最大道具数量
+        
         // 背景
         this.clouds = [];
         this.initClouds();
@@ -294,31 +303,75 @@ class Game {
         }
         
         if (this.enemySpawnTimer >= spawnRate) {
+            // 性能优化：限制屏幕上的敌机数量
+            if (this.enemies.length >= this.maxEnemies) {
+                this.enemySpawnTimer = 0;
+                return; // 达到上限，不再生成
+            }
+            
             // 根据难度生成敌机
             for (let i = 0; i < simultaneousSpawns; i++) {
+                // 检查是否超过上限
+                if (this.enemies.length >= this.maxEnemies) {
+                    break;
+                }
+                
                 // 确保敌机不重叠，传入当前难度
                 const newEnemy = new Enemy(this.canvas, null, this.difficulty);
                 newEnemy.x += i * 80; // 横向偏移避免重叠
                 
-                // 难度超过7时，有30%概率从底部出现阻击玩家
-                if (this.difficulty > 7 && Math.random() < 0.3) {
-                    newEnemy.y = this.canvas.height; // 从底部出现
-                    newEnemy.speed = -Math.abs(newEnemy.speed); // 向上移动（负速度）
-                    newEnemy.isBottomSpawned = true; // 标记为底部生成的敌机
+                // 难度超过5时，有30%概率从底部出现阻击玩家
+                if (this.difficulty > 5 && Math.random() < 0.3) {
+                    // 先创建预警标记（2秒 = 120帧）
+                    this.rearWarnings.push({
+                        x: newEnemy.x + newEnemy.width / 2,
+                        timer: 120, // 2秒预警时间
+                        maxTimer: 120,
+                        enemyX: newEnemy.x, // 保存敌机位置用于稍后生成
+                        enemyData: {
+                            x: newEnemy.x,
+                            difficulty: this.difficulty,
+                            offset: i * 80
+                        }
+                    });
+                    // 不立即添加敌机，等预警结束后再添加
+                    continue;
                 }
                 
                 this.enemies.push(newEnemy);
             }
             this.enemySpawnTimer = 0;
         }
+        
+        // 更新后方敌机预警系统
+        this.rearWarnings = this.rearWarnings.filter(warning => {
+            warning.timer--;
+            
+            // 预警时间结束，生成敌机
+            if (warning.timer <= 0) {
+                const enemy = new Enemy(this.canvas, null, warning.enemyData.difficulty);
+                enemy.x = warning.enemyData.x;
+                enemy.y = this.canvas.height; // 从底部出现
+                enemy.speed = -Math.abs(enemy.speed); // 向上移动（负速度）
+                enemy.isBottomSpawned = true; // 标记为底部生成的敌机
+                this.enemies.push(enemy);
+                return false; // 移除预警标记
+            }
+            
+            return true; // 保留预警标记
+        });
 
         // 更新敌机
         this.enemies.forEach(enemy => {
             enemy.update(this.canvas);
             
-            // 将敌机子弹转移到独立数组
+            // 将敌机子弹转移到独立数组 - 性能优化：限制子弹数量
             if (enemy.bullets.length > 0) {
-                this.enemyBullets.push(...enemy.bullets);
+                const availableSlots = this.maxBullets - (this.player.bullets.length + this.enemyBullets.length);
+                if (availableSlots > 0) {
+                    const bulletsToAdd = enemy.bullets.slice(0, availableSlots);
+                    this.enemyBullets.push(...bulletsToAdd);
+                }
                 enemy.bullets = [];
             }
         });
@@ -423,8 +476,8 @@ class Game {
                             const pGaugeIncrease = Math.max(5, 10 - Math.floor(this.difficulty / 5));
                             this.player.addPGauge(pGaugeIncrease);
                             
-                            // 随机生成道具（30%概率）
-                            if (Math.random() < 0.3) {
+                            // 随机生成道具（30%概率）- 性能优化：限制道具数量
+                            if (Math.random() < 0.3 && this.powerUps.length < this.maxPowerUps) {
                                 this.powerUps.push(new PowerUp(
                                     enemy.x + enemy.width / 2 - 15,
                                     enemy.y + enemy.height / 2 - 15
@@ -453,12 +506,14 @@ class Game {
                         
                         // P3+: 爆炸时向周围发射穿透碎片（防御后方敌机）
                         if (bullet.bombPLevel >= 3) {
-                            const fragmentCount = 12; // 12个方向（更密集）
+                            // 性能优化：限制碎片数量
+                            const availableSlots = this.maxBullets - (this.player.bullets.length + this.enemyBullets.length);
+                            const fragmentCount = Math.min(12, availableSlots); // 最多12个方向
                             const fragmentSpeed = 8; // 碎片速度（更快）
                             const fragmentDamage = 0.5 + bullet.bombPLevel * 0.2; // 碎片伤害
                             
                             for (let i = 0; i < fragmentCount; i++) {
-                                const angle = (Math.PI * 2 * i) / fragmentCount; // 均匀分布
+                                const angle = (Math.PI * 2 * i) / 12; // 保持均匀分布（基于12）
                                 const fragment = new Bullet(
                                     enemy.x + enemy.width / 2,
                                     enemy.y + enemy.height / 2,
@@ -559,6 +614,11 @@ class Game {
             particle.update();
             return !particle.isDead();
         });
+        
+        // 性能优化：定期强制清理最老的粒子（如果超过限制）
+        if (this.particles.length > this.maxParticles) {
+            this.particles = this.particles.slice(-this.maxParticles);
+        }
 
         // 更新UI
         this.updateUI();
@@ -602,6 +662,9 @@ class Game {
         
         // 绘制HP槽UI
         this.drawHPGauge();
+        
+        // 绘制后方敌机预警
+        this.drawRearWarnings();
         
         // 绘制闪电效果
         this.drawLightning();
@@ -1186,20 +1249,33 @@ class Game {
             return;
         }
         
-        for (let i = 0; i < 20; i++) {
+        // 性能优化：限制粒子数量
+        const availableSlots = this.maxParticles - this.particles.length;
+        if (availableSlots <= 0) return;
+        
+        const particleCount = Math.min(availableSlots, 45); // 原本45个粒子
+        const mainCount = Math.min(Math.floor(particleCount * 0.44), 20); // 20个主色
+        const goldCount = Math.min(Math.floor(particleCount * 0.33), 15); // 15个金色
+        const whiteCount = Math.min(particleCount - mainCount - goldCount, 10); // 10个白色
+        
+        for (let i = 0; i < mainCount; i++) {
             this.particles.push(new Particle(x, y, color));
         }
         // 添加火焰颜色
-        for (let i = 0; i < 15; i++) {
+        for (let i = 0; i < goldCount; i++) {
             this.particles.push(new Particle(x, y, '#FFD700'));
         }
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < whiteCount; i++) {
             this.particles.push(new Particle(x, y, '#FFF'));
         }
     }
 
     createHitEffect(x, y) {
-        for (let i = 0; i < 5; i++) {
+        // 性能优化：限制粒子数量
+        if (this.particles.length >= this.maxParticles) return;
+        
+        const particleCount = Math.min(5, this.maxParticles - this.particles.length);
+        for (let i = 0; i < particleCount; i++) {
             this.particles.push(new Particle(x, y, '#FFD700'));
         }
     }
@@ -1208,6 +1284,173 @@ class Game {
         this.scoreElement.textContent = this.score;
         this.killsElement.textContent = this.kills;
         this.difficultyElement.textContent = this.difficulty;
+    }
+    
+    // 绘制后方敌机预警UI
+    drawRearWarnings() {
+        this.ctx.save();
+        
+        this.rearWarnings.forEach(warning => {
+            const x = warning.x;
+            const y = this.canvas.height - 40; // 屏幕底部上方40px
+            const progress = warning.timer / warning.maxTimer; // 预警进度（1到0）
+            const pulseTime = Date.now() * 0.01;
+            
+            // 脉冲动画（更快速的脉动）
+            const pulse = Math.sin(pulseTime * 2) * 0.2 + 0.8; // 0.6到1.0之间脉动
+            
+            // 外层脉冲光晕（增强可见性）
+            this.ctx.globalAlpha = 0.25 * pulse * progress;
+            const glowGradient = this.ctx.createRadialGradient(x, y, 0, x, y, 40);
+            glowGradient.addColorStop(0, '#FF0000');
+            glowGradient.addColorStop(0.4, '#FF4444');
+            glowGradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+            this.ctx.fillStyle = glowGradient;
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, 40, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 紧凑的三角形警告图标
+            this.ctx.globalAlpha = pulse * progress;
+            const triSize = 12;
+            const triY = y;
+            
+            // 三角形阴影
+            this.ctx.shadowBlur = 10;
+            this.ctx.shadowColor = '#FF0000';
+            
+            // 三角形背景（橙红渐变）
+            const triGradient = this.ctx.createLinearGradient(x, triY - triSize, x, triY + triSize);
+            triGradient.addColorStop(0, '#FF6600');
+            triGradient.addColorStop(1, '#FF0000');
+            this.ctx.fillStyle = triGradient;
+            this.ctx.strokeStyle = '#FFFFFF';
+            this.ctx.lineWidth = 2;
+            
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, triY - triSize);
+            this.ctx.lineTo(x - triSize * 0.8, triY + triSize * 0.6);
+            this.ctx.lineTo(x + triSize * 0.8, triY + triSize * 0.6);
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.stroke();
+            
+            // 感叹号（更清晰）
+            this.ctx.shadowBlur = 5;
+            this.ctx.shadowColor = '#FFFFFF';
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.fillRect(x - 1.5, triY - 8, 3, 9);
+            this.ctx.beginPath();
+            this.ctx.arc(x, triY + 4, 2, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 重置阴影
+            this.ctx.shadowBlur = 0;
+            
+            // 精确倒计时（紧凑显示）
+            this.ctx.globalAlpha = progress;
+            const timeLeft = (warning.timer / 60).toFixed(1);
+            
+            // 倒计时背景（深色圆角矩形）
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            this.ctx.beginPath();
+            this.ctx.roundRect(x - 18, triY + 16, 36, 16, 3);
+            this.ctx.fill();
+            
+            // 倒计时文字
+            this.ctx.fillStyle = timeLeft < 0.5 ? '#FFFF00' : '#FFFFFF'; // 最后0.5秒变黄色
+            this.ctx.font = 'bold 12px monospace';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.strokeStyle = '#000000';
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeText(timeLeft + 's', x, triY + 24);
+            this.ctx.fillText(timeLeft + 's', x, triY + 24);
+            
+            // 向上跳动箭头指示器
+            const arrowY = triY - 20;
+            const arrowBounce = Math.sin(pulseTime * 3) * 4; // 上下跳动
+            
+            this.ctx.globalAlpha = pulse * progress;
+            this.ctx.strokeStyle = '#FF3333';
+            this.ctx.lineWidth = 2.5;
+            this.ctx.shadowBlur = 8;
+            this.ctx.shadowColor = '#FF0000';
+            
+            // 箭头杆
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, arrowY + arrowBounce);
+            this.ctx.lineTo(x, arrowY - 14 + arrowBounce);
+            this.ctx.stroke();
+            
+            // 箭头头部（填充）
+            this.ctx.fillStyle = '#FF3333';
+            this.ctx.shadowBlur = 5;
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, arrowY - 14 + arrowBounce);
+            this.ctx.lineTo(x - 5, arrowY - 8 + arrowBounce);
+            this.ctx.lineTo(x + 5, arrowY - 8 + arrowBounce);
+            this.ctx.closePath();
+            this.ctx.fill();
+            
+            // 重置阴影
+            this.ctx.shadowBlur = 0;
+            
+            // 底部位置标记线（连接到屏幕底部）
+            this.ctx.globalAlpha = 0.4 * pulse * progress;
+            this.ctx.strokeStyle = '#FF0000';
+            this.ctx.lineWidth = 2;
+            this.ctx.setLineDash([5, 5]);
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, triY + 18);
+            this.ctx.lineTo(x, this.canvas.height);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
+            
+            // 底部三角形标记（在屏幕边缘）
+            this.ctx.globalAlpha = pulse * progress;
+            this.ctx.fillStyle = '#FF0000';
+            this.ctx.shadowBlur = 8;
+            this.ctx.shadowColor = '#FF0000';
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, this.canvas.height);
+            this.ctx.lineTo(x - 6, this.canvas.height - 10);
+            this.ctx.lineTo(x + 6, this.canvas.height - 10);
+            this.ctx.closePath();
+            this.ctx.fill();
+            
+            // 底部位置圆环脉冲
+            this.ctx.globalAlpha = 0.3 * pulse * progress;
+            this.ctx.strokeStyle = '#FF0000';
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.arc(x, this.canvas.height - 5, 8 + pulse * 3, 0, Math.PI * 2);
+            this.ctx.stroke();
+            
+            // 敌机轮廓图标（临近时显示）
+            if (progress < 0.4) { // 临近时显示
+                this.ctx.shadowBlur = 0;
+                this.ctx.globalAlpha = (0.4 - progress) / 0.4 * pulse; // 淡入效果
+                this.ctx.fillStyle = '#FFFFFF';
+                this.ctx.strokeStyle = '#FF0000';
+                this.ctx.lineWidth = 1.5;
+                
+                const iconSize = 8;
+                const iconY = triY - 28;
+                
+                // 简化的敌机形状
+                this.ctx.beginPath();
+                this.ctx.moveTo(x, iconY - iconSize);
+                this.ctx.lineTo(x - iconSize * 0.7, iconY + iconSize * 0.2);
+                this.ctx.lineTo(x, iconY + iconSize * 0.5);
+                this.ctx.lineTo(x + iconSize * 0.7, iconY + iconSize * 0.2);
+                this.ctx.closePath();
+                this.ctx.fill();
+                this.ctx.stroke();
+            }
+        });
+        
+        this.ctx.restore();
     }
 
     gameOver() {
