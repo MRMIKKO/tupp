@@ -313,6 +313,12 @@ class Game {
         if (this.difficulty < 5) {
             simultaneousSpawns = Math.min(10, simultaneousSpawns * 2);
         }
+        // 难度超过12后，敌机增加数量减少2倍
+        // if (this.difficulty > 12) {
+        //     simultaneousSpawns = Math.max(1, Math.floor(simultaneousSpawns / 2));
+        // }
+        // 总体减少1.5倍同时出现的敌机数量
+        simultaneousSpawns = Math.max(1, Math.floor(simultaneousSpawns / 1.5));
         
         if (this.enemySpawnTimer >= spawnRate) {
             // 性能优化：限制屏幕上的敌机数量
