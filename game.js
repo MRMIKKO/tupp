@@ -53,9 +53,9 @@ class Game {
         };
         
         // 性能优化配置
-        this.maxEnemies = 30; // 屏幕上最大敌机数量
-        this.maxBullets = 150; // 最大子弹数量（玩家+敌机）
-        this.maxParticles = 100; // 最大粒子数量
+        this.maxEnemies = 15; // 屏幕上最大敌机数量（从30增加到60，2倍）
+        this.maxBullets = 88; // 最大子弹数量（玩家+敌机）
+        this.maxParticles = 66; // 最大粒子数量
         this.maxPowerUps = 8; // 最大道具数量
         this.maxFragments = 40; // 最大碎片数量（B弹P3+专用）
         
