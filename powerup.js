@@ -171,7 +171,7 @@ class PowerUp {
 
 // 爆炸范围伤害类
 class Explosion {
-    constructor(x, y, radius = 80, damage = 1) {
+    constructor(x, y, radius = 80, damage = 1, invisible = false, pLevel = 0) {
         this.x = x;
         this.y = y;
         this.radius = radius;
@@ -183,6 +183,8 @@ class Explosion {
         this.age = 0;
         this.damage = damage; // 爆炸伤害倍数
         this.hitEnemies = new Set(); // 记录已经伤害过的敌机，避免重复伤害
+        this.invisible = invisible; // 是否隐藏视觉效果（仅保留范围判定）
+        this.pLevel = pLevel; // P等级（用于判断击杀效果）
     }
     
     update() {
@@ -198,6 +200,11 @@ class Explosion {
     }
     
     draw(ctx) {
+        // P3+的爆炸弹不显示爆炸光晕，只保留伤害判定
+        if (this.invisible) {
+            return;
+        }
+        
         ctx.save();
         
         // 外圈光晕

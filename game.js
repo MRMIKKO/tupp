@@ -368,7 +368,11 @@ class Game {
                             this.player.addPGauge(pGaugeIncrease);
                             
                             enemy.health = 0;
-                            this.createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#FFA500');
+                            
+                            // B弹P3+击杀时不显示彩色爆炸效果（已有碎片效果）
+                            if (explosion.pLevel < 3) {
+                                this.createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#FFA500', false);
+                            }
                             break;
                         }
                     }
@@ -400,7 +404,14 @@ class Game {
                             // 敌机被摧毁
                             this.score += enemy.score;
                             this.kills++;
-                            this.createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#FF6600');
+                            
+                            // B弹P3+击杀时不显示彩色爆炸效果（已有碎片效果）
+                            // 包括碎片自己击杀时也不显示
+                            const hasFragments = bullet.isBomb && bullet.bombPLevel >= 3;
+                            const isFragmentKill = bullet.isFragment;
+                            if (!hasFragments && !isFragmentKill) {
+                                this.createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#FF6600', false);
+                            }
                             
                             // 增加经验值（击杀敌机）- 随难度递减以平衡游戏
                             // 难度1: 10, 难度5: 8, 难度10: 6, 难度15: 4, 难度20+: 3
@@ -429,11 +440,14 @@ class Game {
                     
                     // 爆炸弹：每次击中都产生范围伤害爆炸
                     if (shouldExplode) {
+                        // 保留爆炸光晕效果，不隐藏
                         const explosion = new Explosion(
                             enemy.x + enemy.width / 2, 
                             enemy.y + enemy.height / 2, 
                             bullet.bombRadius || 80,
-                            bullet.bombDamage || 1
+                            bullet.bombDamage || 1,
+                            false, // 不隐藏爆炸光晕
+                            bullet.bombPLevel || 0
                         );
                         this.player.explosions.push(explosion);
                         
@@ -1166,7 +1180,12 @@ class Game {
                obj1.y + obj1.height > obj2.y;
     }
 
-    createExplosion(x, y, color) {
+    createExplosion(x, y, color, skipEffect = false) {
+        // B弹P3+时跳过粒子爆炸效果（已有碎片）
+        if (skipEffect) {
+            return;
+        }
+        
         for (let i = 0; i < 20; i++) {
             this.particles.push(new Particle(x, y, color));
         }
