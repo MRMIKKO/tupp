@@ -309,16 +309,21 @@ class Game {
         
         // 难度越高，可能同时生成多架敌机
         let simultaneousSpawns = Math.min(5, Math.floor(this.difficulty / 3) + 1);
-        // 难度5之前，敌机数量增加2倍
-        if (this.difficulty < 5) {
+
+        // 难度10级以下，增加2.5倍敌机数量
+        if (this.difficulty < 6) {
+            simultaneousSpawns = Math.floor(simultaneousSpawns * 3.5);
+        }
+
+        // // 难度5之前，敌机数量增加2倍
+        if (this.difficulty >= 6 &&  this.difficulty < 10) {
             simultaneousSpawns = Math.min(10, simultaneousSpawns * 2);
         }
         // 难度超过12后，敌机增加数量减少2倍
-        // if (this.difficulty > 12) {
-        //     simultaneousSpawns = Math.max(1, Math.floor(simultaneousSpawns / 2));
-        // }
-        // 总体减少1.5倍同时出现的敌机数量
-        simultaneousSpawns = Math.max(1, Math.floor(simultaneousSpawns / 1.5));
+        if (this.difficulty > 10) {
+            // 总体减少1.5倍同时出现的敌机数量
+            simultaneousSpawns = Math.max(1, Math.floor(simultaneousSpawns / 1.5));
+        }
         
         if (this.enemySpawnTimer >= spawnRate) {
             // 性能优化：限制屏幕上的敌机数量
