@@ -16,6 +16,7 @@ class Game {
         
         // 游戏状态
         this.gameState = 'start'; // 'start', 'playing', 'gameOver'
+        this.gameMode = 'casual'; // 'casual'（休闲模式）或 'boss'（BOSS模式）
         this.score = 0;
         this.kills = 0;
         
@@ -197,6 +198,19 @@ class Game {
     }
 
     setupEventListeners() {
+        // 游戏模式选择按钮
+        const modeButtons = document.querySelectorAll('.mode-btn');
+        modeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // 移除所有active类
+                modeButtons.forEach(b => b.classList.remove('active'));
+                // 添加active到当前按钮
+                btn.classList.add('active');
+                // 设置游戏模式
+                this.gameMode = btn.dataset.mode;
+            });
+        });
+        
         this.startBtn.addEventListener('click', async () => {
             // 先请求权限，然后再开始游戏
             await this.requestMotionPermissionBeforeStart();
@@ -423,65 +437,67 @@ class Game {
             return bullet.active;
         });
         
-        // Boss系统 - 改为基于难度出现
-        // 第一个BOSS需要计时
-        if (!this.firstBossSpawned && !this.boss) {
-            this.bossSpawnTimer++;
-        }
-        
-        // 第一个Boss在游戏开始10秒后必定出现，难度P3以上随机
-        if (!this.firstBossSpawned && this.bossSpawnTimer >= this.bossSpawnInterval && !this.boss) {
-            // 第一个BOSS难度为P3以上随机，不设上限（可能出现满级BOSS）
-            // 使用指数分布让高难度BOSS概率递减，但仍有可能
-            const minDifficulty = 3;
-            const maxPossibleDifficulty = 50; // 理论最高难度
-            
-            // 随机生成：70%概率在P3-P10，20%在P10-P20，10%在P20-P50
-            const rand = Math.random();
-            let bossDifficulty;
-            if (rand < 0.7) {
-                // 70%概率：P3-P10
-                bossDifficulty = minDifficulty + Math.floor(Math.random() * 8);
-            } else if (rand < 0.9) {
-                // 20%概率：P10-P20
-                bossDifficulty = 10 + Math.floor(Math.random() * 11);
-            } else {
-                // 10%概率：P20-P50（包括满级）
-                bossDifficulty = 20 + Math.floor(Math.random() * 31);
+        // Boss系统 - 只在BOSS模式下生成
+        if (this.gameMode === 'boss') {
+            // 第一个BOSS需要计时
+            if (!this.firstBossSpawned && !this.boss) {
+                this.bossSpawnTimer++;
             }
             
-            this.boss = new Boss(this.canvas, bossDifficulty);
-            this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
-            this.audioManager.playBossFlyby(); // BOSS飞过音效
-            
-            // 切换到BOSS战音乐
-            this.audioManager.stopBackgroundMusic();
-            this.audioManager.playBossBattleMusic();
-            
-            this.firstBossSpawned = true;
-            this.lastBossDifficulty = this.difficulty; // 记录出现BOSS时的难度
-            this.bossSpawnTimer = 0;
-        }
-        // 后续Boss：每升3个难度出现一次
-        else if (this.firstBossSpawned && !this.boss && this.difficulty >= this.lastBossDifficulty + 3) {
-            this.boss = new Boss(this.canvas, this.difficulty);
-            this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
-            this.audioManager.playBossFlyby(); // BOSS飞过音效
-            
-            // 切换到BOSS战音乐
-            this.audioManager.stopBackgroundMusic();
-            this.audioManager.playBossBattleMusic();
-            
-            this.lastBossDifficulty = this.difficulty; // 更新上次BOSS难度
-            
-            // Boss出现时掉落2-4个道具帮助玩家
-            const powerUpCount = 2 + Math.floor(Math.random() * 3);
-            for (let i = 0; i < powerUpCount; i++) {
-                const offsetX = (Math.random() - 0.5) * 200;
-                this.powerUps.push(new PowerUp(
-                    this.canvas.width / 2 + offsetX - 15,
-                    -50 - i * 40
-                ));
+            // 第一个Boss在游戏开始10秒后必定出现，难度P3以上随机
+            if (!this.firstBossSpawned && this.bossSpawnTimer >= this.bossSpawnInterval && !this.boss) {
+                // 第一个BOSS难度为P3以上随机，不设上限（可能出现满级BOSS）
+                // 使用指数分布让高难度BOSS概率递减，但仍有可能
+                const minDifficulty = 3;
+                const maxPossibleDifficulty = 50; // 理论最高难度
+                
+                // 随机生成：70%概率在P3-P10，20%在P10-P20，10%在P20-P50
+                const rand = Math.random();
+                let bossDifficulty;
+                if (rand < 0.7) {
+                    // 70%概率：P3-P10
+                    bossDifficulty = minDifficulty + Math.floor(Math.random() * 8);
+                } else if (rand < 0.9) {
+                    // 20%概率：P10-P20
+                    bossDifficulty = 10 + Math.floor(Math.random() * 11);
+                } else {
+                    // 10%概率：P20-P50（包括满级）
+                    bossDifficulty = 20 + Math.floor(Math.random() * 31);
+                }
+                
+                this.boss = new Boss(this.canvas, bossDifficulty);
+                this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
+                this.audioManager.playBossFlyby(); // BOSS飞过音效
+                
+                // 切换到BOSS战音乐
+                this.audioManager.stopBackgroundMusic();
+                this.audioManager.playBossBattleMusic();
+                
+                this.firstBossSpawned = true;
+                this.lastBossDifficulty = this.difficulty; // 记录出现BOSS时的难度
+                this.bossSpawnTimer = 0;
+            }
+            // 后续Boss：每升3个难度出现一次
+            else if (this.firstBossSpawned && !this.boss && this.difficulty >= this.lastBossDifficulty + 3) {
+                this.boss = new Boss(this.canvas, this.difficulty);
+                this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
+                this.audioManager.playBossFlyby(); // BOSS飞过音效
+                
+                // 切换到BOSS战音乐
+                this.audioManager.stopBackgroundMusic();
+                this.audioManager.playBossBattleMusic();
+                
+                this.lastBossDifficulty = this.difficulty; // 更新上次BOSS难度
+                
+                // Boss出现时掉落2-4个道具帮助玩家
+                const powerUpCount = 2 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < powerUpCount; i++) {
+                    const offsetX = (Math.random() - 0.5) * 200;
+                    this.powerUps.push(new PowerUp(
+                        this.canvas.width / 2 + offsetX - 15,
+                        -50 - i * 40
+                    ));
+                }
             }
         }
         
@@ -988,13 +1004,18 @@ class Game {
             return;
         }
         
-        // 检查是否有敌机
-        if (this.enemies.length === 0) {
-            console.log('⚡ 没有敌机可以清除');
+        // 统计清除目标数量
+        const enemyCount = this.enemies.length;
+        const bulletCount = this.enemyBullets.length;
+        const totalTargets = enemyCount + bulletCount;
+        
+        // 检查是否有目标
+        if (totalTargets === 0) {
+            console.log('⚡ 没有目标可以清除');
             return;
         }
         
-        console.log('⚡ 闪电技能激活！清除' + this.enemies.length + '个敌机');
+        console.log(`⚡ 闪电技能激活！清除 ${enemyCount} 个敌机和 ${bulletCount} 发子弹`);
         
         // 播放闪电音效
         this.audioManager.playLightning();
@@ -1021,10 +1042,29 @@ class Game {
             this.kills++;
         });
         
+        // 为部分敌机子弹创建闪电效果（避免太多闪电）
+        const bulletSampleCount = Math.min(bulletCount, 15); // 最多显示15个闪电
+        for (let i = 0; i < bulletSampleCount; i++) {
+            const randomIndex = Math.floor(Math.random() * this.enemyBullets.length);
+            const bullet = this.enemyBullets[randomIndex];
+            if (bullet) {
+                const bolt = this.createLightningBolt(
+                    this.canvas.width / 2,
+                    0,
+                    bullet.x,
+                    bullet.y
+                );
+                this.lightningSkill.lightningBolts.push(bolt);
+                
+                // 小爆炸效果
+                this.createHitEffect(bullet.x, bullet.y);
+            }
+        }
+        
         // 清除所有敌机
         this.enemies = [];
         
-        // 清除所有敌机子弹
+        // 清除所有敌机子弹（包括BOSS子弹）
         this.enemyBullets = [];
         
         // 开始冷却

@@ -519,3 +519,94 @@ button:active {
         z-index: 9999;
     }
 }
+
+/* 游戏模式选择 */
+.game-mode-selection {
+    margin: 15px 0;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+}
+
+.game-mode-selection h3 {
+    font-size: 1.1em;
+    color: #ffd700;
+    margin-bottom: 10px;
+    text-shadow: 0 0 5px rgba(255, 215, 0, 0.3);
+}
+
+.mode-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.mode-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 120px;
+    margin: 0;
+}
+
+.mode-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 215, 0, 0.6);
+    transform: translateY(-2px);
+}
+
+.mode-btn.active {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.25) 0%, rgba(255, 165, 0, 0.25) 100%);
+    border: 2px solid #ffd700;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+}
+
+.mode-icon {
+    font-size: 1.8em;
+    margin-bottom: 5px;
+}
+
+.mode-name {
+    font-size: 0.95em;
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 3px;
+}
+
+.mode-desc {
+    font-size: 0.75em;
+    color: #aaa;
+}
+
+@media (max-width: 768px) {
+    .mode-buttons {
+        gap: 10px;
+    }
+    
+    .mode-btn {
+        min-width: 110px;
+        padding: 8px 16px;
+    }
+    
+    .game-mode-selection {
+        padding: 10px;
+        margin: 10px 0;
+    }
+    
+    .mode-icon {
+        font-size: 1.5em;
+    }
+    
+    .mode-name {
+        font-size: 0.85em;
+    }
+    
+    .mode-desc {
+        font-size: 0.7em;
+    }
+}
