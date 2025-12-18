@@ -345,17 +345,109 @@ class Bullet {
                 ctx.fill();
             }
         } else {
-            // 敌机子弹 - 红色
-            ctx.fillStyle = '#FF4444';
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = '#FF0000';
-            ctx.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
-            
-            // 子弹头部
-            ctx.fillStyle = '#FF6666';
-            ctx.beginPath();
-            ctx.arc(this.x, this.y + this.height, this.width / 2, 0, Math.PI * 2);
-            ctx.fill();
+            // 敌机子弹
+            if (this.isBossWeapon) {
+                // Boss武器 - 特殊视觉效果（深色系，区别于玩家）
+                switch(this.bossWeaponType) {
+                    case 'S':
+                        // Boss散弹 - 深红色
+                        ctx.fillStyle = '#8B0000';
+                        ctx.shadowBlur = 12;
+                        ctx.shadowColor = '#FF0000';
+                        ctx.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
+                        ctx.fillStyle = '#CC0000';
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y + this.height, this.width / 2, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+                        
+                    case 'L':
+                        // Boss激光 - 暗青色
+                        ctx.shadowBlur = 20;
+                        ctx.shadowColor = '#006666';
+                        const bossLaserGradient = ctx.createLinearGradient(this.x, this.y - 15, this.x, this.y + 15);
+                        bossLaserGradient.addColorStop(0, 'rgba(0, 102, 102, 0.3)');
+                        bossLaserGradient.addColorStop(0.5, '#008080');
+                        bossLaserGradient.addColorStop(1, 'rgba(0, 102, 102, 0.3)');
+                        ctx.fillStyle = bossLaserGradient;
+                        ctx.fillRect(this.x - 2, this.y - 15, 4, 30);
+                        ctx.fillStyle = '#00CCCC';
+                        ctx.fillRect(this.x - 1, this.y - 15, 2, 30);
+                        break;
+                        
+                    case 'B':
+                        // Boss爆炸弹 - 暗橙色
+                        const bossSize = this.size || 6;
+                        ctx.shadowBlur = 15;
+                        ctx.shadowColor = '#CC4400';
+                        const bossBombGradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, bossSize);
+                        bossBombGradient.addColorStop(0, '#FFAA00');
+                        bossBombGradient.addColorStop(0.5, '#CC4400');
+                        bossBombGradient.addColorStop(1, '#660000');
+                        ctx.fillStyle = bossBombGradient;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, bossSize, 0, Math.PI * 2);
+                        ctx.fill();
+                        // 暗色火花
+                        ctx.fillStyle = '#FFCC88';
+                        for (let i = 0; i < 3; i++) {
+                            const angle = Date.now() * 0.01 + i * Math.PI * 2 / 3;
+                            const px = this.x + Math.cos(angle) * bossSize * 0.8;
+                            const py = this.y + Math.sin(angle) * bossSize * 0.8;
+                            ctx.beginPath();
+                            ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                        break;
+                        
+                    case 'C':
+                        // Boss追踪火箭 - 深紫色
+                        const bossMissileSize = this.size || 8;
+                        const bossMissileAngle = Math.atan2(this.speedX, -this.speedY);
+                        ctx.save();
+                        ctx.translate(this.x, this.y);
+                        ctx.rotate(bossMissileAngle);
+                        ctx.shadowBlur = 15;
+                        ctx.shadowColor = '#660066';
+                        const bossMissileGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, bossMissileSize);
+                        bossMissileGradient.addColorStop(0, '#CC00CC');
+                        bossMissileGradient.addColorStop(0.3, '#880088');
+                        bossMissileGradient.addColorStop(0.7, '#660066');
+                        bossMissileGradient.addColorStop(1, '#440044');
+                        ctx.fillStyle = bossMissileGradient;
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, bossMissileSize * 0.6, bossMissileSize * 1.2, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        // 暗紫色尾焰
+                        const bossFlameLength = 10 + Math.random() * 3;
+                        const bossFlameGradient = ctx.createLinearGradient(0, 0, 0, bossFlameLength);
+                        bossFlameGradient.addColorStop(0, 'rgba(204, 0, 204, 0.8)');
+                        bossFlameGradient.addColorStop(0.4, 'rgba(136, 0, 136, 0.6)');
+                        bossFlameGradient.addColorStop(0.7, 'rgba(102, 0, 102, 0.3)');
+                        bossFlameGradient.addColorStop(1, 'rgba(68, 0, 68, 0)');
+                        ctx.fillStyle = bossFlameGradient;
+                        ctx.beginPath();
+                        ctx.moveTo(-bossMissileSize * 0.35, 0);
+                        ctx.lineTo(0, bossFlameLength);
+                        ctx.lineTo(bossMissileSize * 0.35, 0);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.restore();
+                        break;
+                }
+            } else {
+                // 普通敌机子弹 - 红色
+                ctx.fillStyle = '#FF4444';
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = '#FF0000';
+                ctx.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
+                
+                // 子弹头部
+                ctx.fillStyle = '#FF6666';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y + this.height, this.width / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
         
         ctx.restore();
