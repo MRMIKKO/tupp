@@ -421,8 +421,10 @@ class Game {
             return bullet.active;
         });
         
-        // Boss系统
-        this.bossSpawnTimer++;
+        // Boss系统 - 只在没有BOSS时计时
+        if (!this.boss) {
+            this.bossSpawnTimer++;
+        }
         
         // 第一个Boss在游戏开始10秒后必定出现
         if (!this.firstBossSpawned && this.bossSpawnTimer >= this.bossSpawnInterval && !this.boss) {
@@ -503,6 +505,9 @@ class Game {
                 // BOSS战结束，切换回普通BGM
                 this.audioManager.stopBackgroundMusic();
                 this.audioManager.playBackgroundMusic();
+                
+                // 重置BOSS出现计时器
+                this.bossSpawnTimer = 0;
             }
         }
         
