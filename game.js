@@ -26,6 +26,7 @@ class Game {
         this.bossSpawnTimer = 0;
         this.bossSpawnInterval = 600; // 游戏开始10秒后出现第一次Boss（60fps * 10）
         this.firstBossSpawned = false; // 是否已生成第一个Boss
+        this.lastBossDifficulty = 0; // 上次出现BOSS的难度
         this.enemyBullets = []; // 独立的敌机子弹数组
         this.particles = [];
         this.powerUps = []; // 道具数组
@@ -239,6 +240,7 @@ class Game {
         this.bossSpawnTimer = 0; // 重置Boss生成计时器
         this.bossSpawnInterval = 600; // 重置为10秒
         this.firstBossSpawned = false; // 重置Boss生成标记
+        this.lastBossDifficulty = 0; // 重置上次BOSS难度
         this.enemyBullets = [];
         this.particles = [];
         this.player.reset(this.canvas);
@@ -421,14 +423,34 @@ class Game {
             return bullet.active;
         });
         
-        // Boss系统 - 只在没有BOSS时计时
-        if (!this.boss) {
+        // Boss系统 - 改为基于难度出现
+        // 第一个BOSS需要计时
+        if (!this.firstBossSpawned && !this.boss) {
             this.bossSpawnTimer++;
         }
         
-        // 第一个Boss在游戏开始10秒后必定出现
+        // 第一个Boss在游戏开始10秒后必定出现，难度P3以上随机
         if (!this.firstBossSpawned && this.bossSpawnTimer >= this.bossSpawnInterval && !this.boss) {
-            this.boss = new Boss(this.canvas, this.difficulty);
+            // 第一个BOSS难度为P3以上随机，不设上限（可能出现满级BOSS）
+            // 使用指数分布让高难度BOSS概率递减，但仍有可能
+            const minDifficulty = 3;
+            const maxPossibleDifficulty = 50; // 理论最高难度
+            
+            // 随机生成：70%概率在P3-P10，20%在P10-P20，10%在P20-P50
+            const rand = Math.random();
+            let bossDifficulty;
+            if (rand < 0.7) {
+                // 70%概率：P3-P10
+                bossDifficulty = minDifficulty + Math.floor(Math.random() * 8);
+            } else if (rand < 0.9) {
+                // 20%概率：P10-P20
+                bossDifficulty = 10 + Math.floor(Math.random() * 11);
+            } else {
+                // 10%概率：P20-P50（包括满级）
+                bossDifficulty = 20 + Math.floor(Math.random() * 31);
+            }
+            
+            this.boss = new Boss(this.canvas, bossDifficulty);
             this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
             this.audioManager.playBossFlyby(); // BOSS飞过音效
             
@@ -437,36 +459,29 @@ class Game {
             this.audioManager.playBossBattleMusic();
             
             this.firstBossSpawned = true;
+            this.lastBossDifficulty = this.difficulty; // 记录出现BOSS时的难度
             this.bossSpawnTimer = 0;
-            this.bossSpawnInterval = 900; // 之后每15秒检查一次
         }
-        // 之后的Boss：每15秒根据概率出现，每30秒必定出现
-        else if (this.firstBossSpawned && this.bossSpawnTimer >= this.bossSpawnInterval && !this.boss) {
-            const bossChance = Math.min(0.8, 0.3 + Math.max(0, this.difficulty - 5) * 0.05);
-            const forcedSpawn = this.bossSpawnTimer >= 1800; // 30秒必定出现
+        // 后续Boss：每升3个难度出现一次
+        else if (this.firstBossSpawned && !this.boss && this.difficulty >= this.lastBossDifficulty + 3) {
+            this.boss = new Boss(this.canvas, this.difficulty);
+            this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
+            this.audioManager.playBossFlyby(); // BOSS飞过音效
             
-            if (forcedSpawn || Math.random() < bossChance) {
-                this.boss = new Boss(this.canvas, this.difficulty);
-                this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
-                this.audioManager.playBossFlyby(); // BOSS飞过音效
-                
-                // 切换到BOSS战音乐
-                this.audioManager.stopBackgroundMusic();
-                this.audioManager.playBossBattleMusic();
-                
-                // Boss出现时掉落2-4个道具帮助玩家
-                const powerUpCount = 2 + Math.floor(Math.random() * 3);
-                for (let i = 0; i < powerUpCount; i++) {
-                    const offsetX = (Math.random() - 0.5) * 200;
-                    this.powerUps.push(new PowerUp(
-                        this.canvas.width / 2 + offsetX - 15,
-                        -50 - i * 40
-                    ));
-                }
-                this.bossSpawnTimer = 0;
-            } else {
-                // 未触发概率，继续等待
-                // 不重置计时器，继续累加直到达到30秒强制出现
+            // 切换到BOSS战音乐
+            this.audioManager.stopBackgroundMusic();
+            this.audioManager.playBossBattleMusic();
+            
+            this.lastBossDifficulty = this.difficulty; // 更新上次BOSS难度
+            
+            // Boss出现时掉落2-4个道具帮助玩家
+            const powerUpCount = 2 + Math.floor(Math.random() * 3);
+            for (let i = 0; i < powerUpCount; i++) {
+                const offsetX = (Math.random() - 0.5) * 200;
+                this.powerUps.push(new PowerUp(
+                    this.canvas.width / 2 + offsetX - 15,
+                    -50 - i * 40
+                ));
             }
         }
         
@@ -505,9 +520,6 @@ class Game {
                 // BOSS战结束，切换回普通BGM
                 this.audioManager.stopBackgroundMusic();
                 this.audioManager.playBackgroundMusic();
-                
-                // 重置BOSS出现计时器
-                this.bossSpawnTimer = 0;
             }
         }
         
