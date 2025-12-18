@@ -436,12 +436,14 @@ class Game {
             
             this.firstBossSpawned = true;
             this.bossSpawnTimer = 0;
-            this.bossSpawnInterval = 1800; // 之后每30秒可能出现一次
+            this.bossSpawnInterval = 900; // 之后每15秒检查一次
         }
-        // 之后的Boss按原有逻辑生成
-        else if (this.firstBossSpawned && this.bossSpawnTimer >= this.bossSpawnInterval && !this.boss && this.difficulty >= 5) {
-            const bossChance = Math.min(0.8, 0.3 + (this.difficulty - 5) * 0.05);
-            if (Math.random() < bossChance) {
+        // 之后的Boss：每15秒根据概率出现，每30秒必定出现
+        else if (this.firstBossSpawned && this.bossSpawnTimer >= this.bossSpawnInterval && !this.boss) {
+            const bossChance = Math.min(0.8, 0.3 + Math.max(0, this.difficulty - 5) * 0.05);
+            const forcedSpawn = this.bossSpawnTimer >= 1800; // 30秒必定出现
+            
+            if (forcedSpawn || Math.random() < bossChance) {
                 this.boss = new Boss(this.canvas, this.difficulty);
                 this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
                 this.audioManager.playBossFlyby(); // BOSS飞过音效
@@ -459,8 +461,11 @@ class Game {
                         -50 - i * 40
                     ));
                 }
+                this.bossSpawnTimer = 0;
+            } else {
+                // 未触发概率，继续等待
+                // 不重置计时器，继续累加直到达到30秒强制出现
             }
-            this.bossSpawnTimer = 0;
         }
         
         // 更新Boss
