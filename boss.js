@@ -11,8 +11,8 @@ class Boss {
         // Boss强度至少为P3（难度3）
         this.difficulty = Math.max(3, difficulty);
         
-        // Boss属性 - 血量随难度大幅提升
-        this.maxHealth = 150 + this.difficulty * 80; // 更厚的血量
+        // Boss属性 - 血量随难度大幅提升（3倍血量）
+        this.maxHealth = (150 + this.difficulty * 80); // 更厚的血量
         this.health = this.maxHealth;
         this.score = 5000 * this.difficulty;
         this.active = true;
@@ -57,6 +57,9 @@ class Boss {
         this.hitFlash = 0; // 闪烁计时器
         this.hitFlashDuration = 10; // 闪烁持续帧数
         
+        // 穿透弹冷却机制（防止持续伤害）
+        this.hitCooldowns = new Map(); // 记录每颗子弹的冷却时间 Map<bulletId, cooldownFrames>
+        
         // 炮塔位置
         this.turrets = [
             { x: -60, y: 30, angle: 0 },
@@ -68,6 +71,33 @@ class Boss {
         
         // 引擎效果
         this.enginePulse = 0;
+        
+        // 出场动画系统
+        this.entranceAnimation = {
+            active: false, // 是否在出场动画中
+            phase: 'flyIn', // flyIn(飞入) -> shoot(射击) -> flyOut(飞出) -> normalEntry(正常进场)
+            timer: 0,
+            scale: 1.8, // 初始放大2倍
+            x: canvas.width / 2 - (this.width * 2) / 2, // 在屏幕中央
+            y: -this.height * 2, // 从屏幕上方开始
+            speedY: 13, // 纵向飞行速度（从36减回到18）
+            shootTimer: 0,
+            shootInterval: 3, // 每3帧发射一次（加快射击频率）
+            enemiesToClear: [] // 需要清除的敌机列表
+        };
+        
+        // 随机选择Boss名称
+        const bossNames = ['猪润', '猪肝', '5分','战神KM', 'Yep', '大头', 'K后', 'D后', '牛头二', '拉筋佬', '十你卤味','二弟','花开富贵'];
+        this.bossName = bossNames[Math.floor(Math.random() * bossNames.length)];
+    }
+    
+    // 启动出场动画
+    startEntranceAnimation(enemies) {
+        this.entranceAnimation.active = true;
+        this.entranceAnimation.phase = 'flyIn';
+        this.entranceAnimation.timer = 0;
+        this.entranceAnimation.enemiesToClear = enemies; // 保存敌机引用用于清除
+        this.movePattern = 'entrance'; // 设置为出场模式
     }
     
     update(canvas, player) {
@@ -78,6 +108,26 @@ class Boss {
         // 击中闪烁效果衰减
         if (this.hitFlash > 0) {
             this.hitFlash--;
+        }
+        
+        // 更新穿透弹冷却计时器
+        for (let [bulletId, cooldown] of this.hitCooldowns.entries()) {
+            if (cooldown > 0) {
+                this.hitCooldowns.set(bulletId, cooldown - 1);
+            } else {
+                this.hitCooldowns.delete(bulletId);
+            }
+        }
+        
+        // 处理出场动画
+        if (this.entranceAnimation.active) {
+            this.updateEntranceAnimation(canvas, player);
+            // 出场动画期间不执行正常逻辑
+            this.bullets = this.bullets.filter(bullet => {
+                bullet.update();
+                return bullet.active && bullet.y < canvas.height + 50 && bullet.y > -50;
+            });
+            return;
         }
         
         // 检查是否可以发动冲撞（血量<50%）
@@ -231,6 +281,122 @@ class Boss {
         });
     }
     
+    // 更新出场动画
+    updateEntranceAnimation(canvas, player) {
+        const anim = this.entranceAnimation;
+        anim.timer++;
+        anim.shootTimer++;
+        
+        // 火力全开！从一出现就开始疯狂射击（减半避免卡顿）
+        if (anim.shootTimer >= anim.shootInterval && anim.phase !== 'normalEntry') {
+            const centerX = anim.x + (this.width * anim.scale) / 2;
+            const centerY = anim.y + (this.height * anim.scale) / 2;
+            
+            // 1. 全屏散射S弹 - 数量减半
+            const bulletCount = 12; // 从24减少到12
+            const spreadAngle = Math.PI * 1.5;
+            
+            for (let i = 0; i < bulletCount; i++) {
+                const angle = Math.PI / 2 - spreadAngle / 2 + (spreadAngle / (bulletCount - 1)) * i;
+                const bullet = new Bullet(centerX, centerY, 10, false, canvas.height);
+                bullet.speedX = Math.cos(angle) * 10;
+                bullet.speedY = Math.sin(angle) * 10;
+                bullet.damage = 999;
+                bullet.size = 10;
+                bullet.isBossWeapon = true;
+                bullet.bossWeaponType = 'S';
+                bullet.isEntranceBullet = true;
+                this.bullets.push(bullet);
+            }
+            
+            // 2. 每个炮台发射追踪弹 - 数量减半
+            this.turrets.forEach((turret, index) => {
+                // 只有部分炮台发射，减少子弹数量
+                if (index % 2 === 0) { // 只有偶数索引的炮台发射
+                    const turretX = centerX + turret.x * anim.scale;
+                    const turretY = centerY + turret.y * anim.scale;
+                    
+                    const missile = new Bullet(turretX, turretY, 9, false, canvas.height);
+                    const randomAngle = (Math.random() - 0.5) * Math.PI;
+                    missile.speedX = Math.cos(randomAngle) * 9;
+                    missile.speedY = Math.sin(randomAngle) * 9;
+                    missile.damage = 999;
+                    missile.size = 8;
+                    missile.isMissile = true;
+                    missile.isBossWeapon = true;
+                    missile.bossWeaponType = 'C';
+                    missile.isEntranceBullet = true;
+                    this.bullets.push(missile);
+                }
+            });
+            
+            // 3. 额外发射爆炸弹 - 数量减半
+            if (anim.timer % 30 === 0) { // 从15帧改为30帧发射一次
+                for (let i = -1; i <= 1; i++) { // 从5个减少到3个
+                    const bomb = new Bullet(centerX + i * 80, centerY, 7, false, canvas.height);
+                    bomb.speedX = i * 2;
+                    bomb.speedY = 7;
+                    bomb.damage = 999;
+                    bomb.size = 12;
+                    bomb.isBomb = true;
+                    bomb.bombRadius = 100;
+                    bomb.isBossWeapon = true;
+                    bomb.bossWeaponType = 'B';
+                    bomb.isEntranceBullet = true;
+                    this.bullets.push(bomb);
+                }
+            }
+            
+            anim.shootTimer = 0;
+        }
+        
+        // 清除所有敌机
+        if (anim.enemiesToClear && anim.enemiesToClear.length > 0 && anim.phase !== 'normalEntry') {
+            anim.enemiesToClear.forEach(enemy => {
+                enemy.health = 0;
+                enemy.active = false;
+            });
+        }
+        
+        switch(anim.phase) {
+            case 'flyIn':
+                // 阶段1: 从上方俯冲飞入，火力全开
+                anim.y += anim.speedY;
+                
+                // 飞到屏幕中部偏下后开始飞出
+                if (anim.y >= canvas.height * 0.6) {
+                    anim.phase = 'flyOut';
+                    anim.timer = 0;
+                }
+                break;
+                
+            case 'flyOut':
+                // 阶段2: 继续向下飞出屏幕，持续射击
+                anim.y += anim.speedY;
+                
+                // 飞出屏幕后进入正常进场
+                if (anim.y > canvas.height + this.height * anim.scale) {
+                    anim.phase = 'normalEntry';
+                    anim.timer = 0;
+                    // 重置Boss位置到正常进场位置
+                    this.x = canvas.width / 2 - this.width / 2;
+                    this.y = -this.height;
+                    this.movePattern = 'entry';
+                }
+                break;
+                
+            case 'normalEntry':
+                // 阶段3: 从顶部正常进场（速度提高2倍）
+                this.y += this.speed * 2;
+                if (this.y >= this.targetY) {
+                    this.movePattern = 'hover';
+                    this.moveTimer = 0;
+                    anim.active = false;
+                }
+                break;
+        }
+    }
+    
     initiateChargeAttack(player) {
         if (!player) return;
         
@@ -330,15 +496,29 @@ class Boss {
                 break;
                 
             case 'C':
-                // 追踪火箭模式 - 追踪导弹（Boss版本：深紫色）
-                const missileCount = 1 + Math.floor(this.difficulty / 3);
-                for (let i = 0; i < missileCount; i++) {
-                    const offsetX = (i - missileCount / 2) * 40;
-                    const missile = new Bullet(centerX + offsetX, this.y + this.height, 7 + difficultyBonus, false, this.canvasHeight);
+                // 追踪火箭模式 - 从炮台发射（Boss版本：深紫色）
+                // 从5个炮台中随机选择1-3个发射
+                const activeTurrets = Math.min(this.turrets.length, 1 + Math.floor(this.difficulty / 3));
+                const selectedTurrets = [];
+                const turretIndices = [...Array(this.turrets.length).keys()];
+                
+                // 随机选择炮台
+                for (let i = 0; i < activeTurrets; i++) {
+                    const randomIndex = Math.floor(Math.random() * turretIndices.length);
+                    selectedTurrets.push(this.turrets[turretIndices[randomIndex]]);
+                    turretIndices.splice(randomIndex, 1);
+                }
+                
+                // 从选中的炮台发射追踪弹
+                selectedTurrets.forEach(turret => {
+                    const turretX = centerX + turret.x;
+                    const turretY = this.y + turret.y;
+                    
+                    const missile = new Bullet(turretX, turretY, 7 + difficultyBonus, false, this.canvasHeight);
                     
                     // 初始朝向玩家
-                    const dx = (player.x + player.width / 2) - (centerX + offsetX);
-                    const dy = (player.y + player.height / 2) - (this.y + this.height);
+                    const dx = (player.x + player.width / 2) - turretX;
+                    const dy = (player.y + player.height / 2) - turretY;
                     const distance = Math.sqrt(dx * dx + dy * dy);
                     
                     missile.speedX = (dx / distance) * (7 + difficultyBonus);
@@ -351,8 +531,14 @@ class Boss {
                     missile.isBossWeapon = true;
                     missile.bossWeaponType = 'C';
                     missile.target = player; // 设置追踪目标
+                    
+                    // 添加生命值系统（可被玩家击破）
+                    missile.health = 1; // 命中1发就能击破
+                    missile.maxHealth = 1;
+                    missile.isDestructible = true; // 标记为可摧毁
+                    
                     this.bullets.push(missile);
-                }
+                });
                 break;
         }
         
@@ -360,7 +546,17 @@ class Boss {
     }
     
     
-    hit(damage = 1) {
+    hit(damage = 1, bulletId = null) {
+        // 如果是穿透弹，检查冷却时间
+        if (bulletId !== null) {
+            const cooldown = this.hitCooldowns.get(bulletId) || 0;
+            if (cooldown > 0) {
+                return false; // 冷却中，不造成伤害
+            }
+            // 设置冷却时间（10帧，约0.167秒）
+            this.hitCooldowns.set(bulletId, 10);
+        }
+        
         this.health -= damage;
         // 触发击中闪烁效果
         this.hitFlash = this.hitFlashDuration;
@@ -370,8 +566,28 @@ class Boss {
     draw(ctx) {
         ctx.save();
         
-        const centerX = this.x + this.width / 2;
-        const centerY = this.y + this.height / 2;
+        // 如果在出场动画中，应用缩放和位置变换
+        let scale = 1;
+        let drawX = this.x;
+        let drawY = this.y;
+        
+        if (this.entranceAnimation.active && this.entranceAnimation.phase !== 'normalEntry') {
+            scale = this.entranceAnimation.scale;
+            drawX = this.entranceAnimation.x;
+            drawY = this.entranceAnimation.y;
+            
+            // 应用变换：先移动到绘制位置，再缩放
+            ctx.translate(drawX + this.width * scale / 2, drawY + this.height * scale / 2);
+            ctx.scale(scale, scale);
+            ctx.translate(-this.width / 2, -this.height / 2);
+            
+            // 调整后续代码使用的中心点和坐标系统
+            drawX = 0;
+            drawY = 0;
+        }
+        
+        const centerX = drawX + this.width / 2;
+        const centerY = drawY + this.height / 2;
         
         // 计算冲撞蓄力的颜色混合值
         let chargeIntensity = 0;
@@ -440,7 +656,7 @@ class Boss {
             baseColor2 = reddenColor(baseColor2, chargeIntensity * 0.7);
         }
         
-        const bodyGradient = ctx.createLinearGradient(this.x, centerY, this.x + this.width, centerY);
+        const bodyGradient = ctx.createLinearGradient(drawX, centerY, drawX + this.width, centerY);
         bodyGradient.addColorStop(0, baseColor1);
         bodyGradient.addColorStop(0.5, baseColor2);
         bodyGradient.addColorStop(1, baseColor1);
@@ -457,13 +673,13 @@ class Boss {
         
         // 主机身 (所有坐标乘以1.5)
         ctx.beginPath();
-        ctx.moveTo(centerX, this.y + this.height);
-        ctx.lineTo(centerX - 45, this.y + 105);  // -30*1.5, 70*1.5
-        ctx.lineTo(centerX - 52.5, this.y + 30); // -35*1.5, 20*1.5
-        ctx.lineTo(centerX - 30, this.y);        // -20*1.5
-        ctx.lineTo(centerX + 30, this.y);        // 20*1.5
-        ctx.lineTo(centerX + 52.5, this.y + 30); // 35*1.5, 20*1.5
-        ctx.lineTo(centerX + 45, this.y + 105);  // 30*1.5, 70*1.5
+        ctx.moveTo(centerX, drawY + this.height);
+        ctx.lineTo(centerX - 45, drawY + 105);  // -30*1.5, 70*1.5
+        ctx.lineTo(centerX - 52.5, drawY + 30); // -35*1.5, 20*1.5
+        ctx.lineTo(centerX - 30, drawY);        // -20*1.5
+        ctx.lineTo(centerX + 30, drawY);        // 20*1.5
+        ctx.lineTo(centerX + 52.5, drawY + 30); // 35*1.5, 20*1.5
+        ctx.lineTo(centerX + 45, drawY + 105);  // 30*1.5, 70*1.5
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
@@ -488,20 +704,20 @@ class Boss {
         
         // 左翼 (所有坐标乘以1.5)
         ctx.beginPath();
-        ctx.moveTo(centerX - 52.5, this.y + 60);   // -35*1.5, 40*1.5
-        ctx.lineTo(this.x - 15, this.y + 67.5);     // -10*1.5, 45*1.5
-        ctx.lineTo(this.x, this.y + 90);            // 60*1.5
-        ctx.lineTo(centerX - 45, this.y + 82.5);    // -30*1.5, 55*1.5
+        ctx.moveTo(centerX - 52.5, drawY + 60);   // -35*1.5, 40*1.5
+        ctx.lineTo(drawX - 15, drawY + 67.5);     // -10*1.5, 45*1.5
+        ctx.lineTo(drawX, drawY + 90);            // 60*1.5
+        ctx.lineTo(centerX - 45, drawY + 82.5);    // -30*1.5, 55*1.5
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
         
         // 右翼 (所有坐标乘以1.5)
         ctx.beginPath();
-        ctx.moveTo(centerX + 52.5, this.y + 60);         // 35*1.5, 40*1.5
-        ctx.lineTo(this.x + this.width + 15, this.y + 67.5); // 10*1.5, 45*1.5
-        ctx.lineTo(this.x + this.width, this.y + 90);    // 60*1.5
-        ctx.lineTo(centerX + 45, this.y + 82.5);         // 30*1.5, 55*1.5
+        ctx.moveTo(centerX + 52.5, drawY + 60);         // 35*1.5, 40*1.5
+        ctx.lineTo(drawX + this.width + 15, drawY + 67.5); // 10*1.5, 45*1.5
+        ctx.lineTo(drawX + this.width, drawY + 90);    // 60*1.5
+        ctx.lineTo(centerX + 45, drawY + 82.5);         // 30*1.5, 55*1.5
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
@@ -509,7 +725,7 @@ class Boss {
         // 绘制炮塔
         this.turrets.forEach(turret => {
             const turretX = centerX + turret.x;
-            const turretY = this.y + turret.y;
+            const turretY = drawY + turret.y;
             
             ctx.save();
             ctx.translate(turretX, turretY);
@@ -574,36 +790,36 @@ class Boss {
         }
         
         // 左引擎 (15*1.5=22.5, 10*1.5=15, 8*1.5=12)
-        const leftEngineGradient = ctx.createRadialGradient(this.x + 22.5, this.y + 15, 0, this.x + 22.5, this.y + 15, 12);
+        const leftEngineGradient = ctx.createRadialGradient(drawX + 22.5, drawY + 15, 0, drawX + 22.5, drawY + 15, 12);
         leftEngineGradient.addColorStop(0, `rgba(255, 100, 50, ${Math.min(1, engineGlow * engineBoost)})`);
         leftEngineGradient.addColorStop(0.5, `rgba(255, 150, 100, ${Math.min(1, engineGlow * 0.6 * engineBoost)})`);
         leftEngineGradient.addColorStop(1, 'rgba(100, 50, 0, 0)');
         ctx.fillStyle = leftEngineGradient;
         ctx.beginPath();
-        ctx.arc(this.x + 22.5, this.y + 15, 12, 0, Math.PI * 2);
+        ctx.arc(drawX + 22.5, drawY + 15, 12, 0, Math.PI * 2);
         ctx.fill();
         
         // 右引擎 (15*1.5=22.5, 10*1.5=15, 8*1.5=12)
-        const rightEngineGradient = ctx.createRadialGradient(this.x + this.width - 22.5, this.y + 15, 0, this.x + this.width - 22.5, this.y + 15, 12);
+        const rightEngineGradient = ctx.createRadialGradient(drawX + this.width - 22.5, drawY + 15, 0, drawX + this.width - 22.5, drawY + 15, 12);
         rightEngineGradient.addColorStop(0, `rgba(255, 100, 50, ${Math.min(1, engineGlow * engineBoost)})`);
         rightEngineGradient.addColorStop(0.5, `rgba(255, 150, 100, ${Math.min(1, engineGlow * 0.6 * engineBoost)})`);
         rightEngineGradient.addColorStop(1, 'rgba(100, 50, 0, 0)');
         ctx.fillStyle = rightEngineGradient;
         ctx.beginPath();
-        ctx.arc(this.x + this.width - 22.5, this.y + 15, 12, 0, Math.PI * 2);
+        ctx.arc(drawX + this.width - 22.5, drawY + 15, 12, 0, Math.PI * 2);
         ctx.fill();
         
         // Boss标识 - 骷髅头 (24*1.5=36, 45*1.5=67.5)
         ctx.fillStyle = '#FF0000';
         ctx.font = 'bold 36px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('💀', centerX, this.y + 67.5);
+        ctx.fillText('💀', centerX, drawY + 67.5);
         
         // Boss血量条 (40*1.5=60, 8*1.5=12, 20*1.5=30, 25*1.5=37.5)
         const barWidth = this.width + 60;
         const barHeight = 12;
-        const barX = this.x - 30;
-        const barY = this.y - 37.5;
+        const barX = drawX - 30;
+        const barY = drawY - 37.5;
         
         // 血条背景
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -636,7 +852,7 @@ class Boss {
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 7.5;
         ctx.textAlign = 'center';
-        ctx.fillText('⚠️ BOSS ⚠️', centerX, barY - 12);
+        ctx.fillText(this.bossName, centerX, barY - 12);
         ctx.shadowBlur = 0;
         
         ctx.restore();

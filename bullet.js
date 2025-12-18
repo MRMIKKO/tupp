@@ -100,7 +100,42 @@ class Bullet {
                 this.y -= this.speed; // 普通子弹向上
             }
         } else {
-            this.y += this.speed; // 敌机子弹向下
+            // 敌机子弹逻辑
+            
+            // Boss追踪弹逻辑（isMissile为true且有target）
+            if (this.isHoming && this.isMissile && this.target) {
+                const dx = this.target.x + this.target.width / 2 - this.x;
+                const dy = this.target.y + this.target.height / 2 - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist > 0) {
+                    // 计算朝向目标的单位向量
+                    const targetDirX = dx / dist;
+                    const targetDirY = dy / dist;
+                    
+                    // 当前速度归一化
+                    const currentSpeed = Math.sqrt(this.speedX * this.speedX + this.speedY * this.speedY);
+                    const currentDirX = this.speedX / currentSpeed;
+                    const currentDirY = this.speedY / currentSpeed;
+                    
+                    // 插值混合当前方向和目标方向
+                    const newDirX = currentDirX * (1 - this.homingStrength) + targetDirX * this.homingStrength;
+                    const newDirY = currentDirY * (1 - this.homingStrength) + targetDirY * this.homingStrength;
+                    
+                    // 归一化新方向并应用速度
+                    const newDirLength = Math.sqrt(newDirX * newDirX + newDirY * newDirY);
+                    this.speedX = (newDirX / newDirLength) * currentSpeed;
+                    this.speedY = (newDirY / newDirLength) * currentSpeed;
+                }
+            }
+            
+            // 移动敌机子弹
+            if (this.speedX !== 0 || this.speedY !== 0) {
+                this.x += this.speedX;
+                this.y += this.speedY;
+            } else {
+                this.y += this.speed; // 普通敌机子弹向下
+            }
         }
 
         // 检查是否超出屏幕（包括左右边界）

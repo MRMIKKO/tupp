@@ -24,7 +24,8 @@ class Game {
         this.enemies = [];
         this.boss = null; // Boss实例
         this.bossSpawnTimer = 0;
-        this.bossSpawnInterval = 1800; // 每30秒尝试生成Boss（60fps * 30）
+        this.bossSpawnInterval = 600; // 游戏开始10秒后出现第一次Boss（60fps * 10）
+        this.firstBossSpawned = false; // 是否已生成第一个Boss
         this.enemyBullets = []; // 独立的敌机子弹数组
         this.particles = [];
         this.powerUps = []; // 道具数组
@@ -236,16 +237,14 @@ class Game {
         this.enemies = [];
         this.boss = null; // 重置Boss
         this.bossSpawnTimer = 0; // 重置Boss生成计时器
+        this.bossSpawnInterval = 600; // 重置为10秒
+        this.firstBossSpawned = false; // 重置Boss生成标记
         this.enemyBullets = [];
         this.particles = [];
         this.player.reset(this.canvas);
         this.difficulty = 1; // 从难度1开始，保持游戏平衡
         this.difficultyTimer = 0; // 重置难度计时器
         this.enemySpawnTimer = 0; // 重置敌机生成计时器
-        
-        // 游戏开始时立即生成第一个Boss（特殊条件）
-        this.boss = new Boss(this.canvas, this.difficulty);
-        console.log('🎮 初始Boss已生成（难度：' + this.difficulty + '）');
         
         // 重置技能冷却
         this.lightningSkill.available = true;
@@ -303,12 +302,14 @@ class Game {
         // 更新玩家（传入敌人列表用于追踪弹）
         this.player.update(this.canvas, this.audioManager, this.enemies);
 
-        // 难度系统 - 每10秒自动提升难度
-        this.difficultyTimer++;
-        if (this.difficultyTimer >= this.difficultyIncreaseInterval) {
-            this.difficulty++;
-            this.updateUI();
-            this.difficultyTimer = 0;
+        // 难度系统 - 每10秒自动提升难度（Boss存在时暂停）
+        if (!this.boss) {
+            this.difficultyTimer++;
+            if (this.difficultyTimer >= this.difficultyIncreaseInterval) {
+                this.difficulty++;
+                this.updateUI();
+                this.difficultyTimer = 0;
+            }
         }
 
         // 生成敌机 - 根据难度动态调整
@@ -335,6 +336,12 @@ class Game {
         }
         
         if (this.enemySpawnTimer >= spawnRate) {
+            // Boss存在时不生成普通敌机（除非难度达到14级以上）
+            if (this.boss && this.difficulty < 14) {
+                this.enemySpawnTimer = 0;
+                return;
+            }
+            
             // 性能优化：限制屏幕上的敌机数量
             if (this.enemies.length >= this.maxEnemies) {
                 this.enemySpawnTimer = 0;
@@ -414,15 +421,33 @@ class Game {
             return bullet.active;
         });
         
-        // Boss系统 - 每30秒可能出现一次Boss
+        // Boss系统
         this.bossSpawnTimer++;
-        if (this.bossSpawnTimer >= this.bossSpawnInterval && !this.boss && this.difficulty >= 5) {
-            // 难度5+才会出现Boss，概率随难度提升
+        
+        // 第一个Boss在游戏开始10秒后必定出现
+        if (!this.firstBossSpawned && this.bossSpawnTimer >= this.bossSpawnInterval && !this.boss) {
+            this.boss = new Boss(this.canvas, this.difficulty);
+            this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
+            this.firstBossSpawned = true;
+            this.bossSpawnTimer = 0;
+            this.bossSpawnInterval = 1800; // 之后每30秒可能出现一次
+        }
+        // 之后的Boss按原有逻辑生成
+        else if (this.firstBossSpawned && this.bossSpawnTimer >= this.bossSpawnInterval && !this.boss && this.difficulty >= 5) {
             const bossChance = Math.min(0.8, 0.3 + (this.difficulty - 5) * 0.05);
             if (Math.random() < bossChance) {
                 this.boss = new Boss(this.canvas, this.difficulty);
-                // TODO: 添加Boss警告音效
-                // this.audioManager.playBossWarning();
+                this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
+                
+                // Boss出现时掉落2-4个道具帮助玩家
+                const powerUpCount = 2 + Math.floor(Math.random() * 3);
+                for (let i = 0; i < powerUpCount; i++) {
+                    const offsetX = (Math.random() - 0.5) * 200;
+                    this.powerUps.push(new PowerUp(
+                        this.canvas.width / 2 + offsetX - 15,
+                        -50 - i * 40
+                    ));
+                }
             }
             this.bossSpawnTimer = 0;
         }
@@ -677,8 +702,8 @@ class Game {
                 }
             }
             
-            // 检查是否击中玩家
-            if (this.checkCollision(bullet, this.player)) {
+            // 检查是否击中玩家（出场子弹对玩家无伤）
+            if (!bullet.isEntranceBullet && this.checkCollision(bullet, this.player)) {
                 bullet.active = false;
                 if (this.player.hit()) {
                     this.createExplosion(this.player.x + this.player.width / 2, 
@@ -712,8 +737,8 @@ class Game {
             }
         });
         
-        // 碰撞检测 - 玩家与Boss
-        if (this.boss) {
+        // 碰撞检测 - 玩家与Boss（出场动画期间无伤）
+        if (this.boss && !this.boss.entranceAnimation.active) {
             // Boss冲撞伤害检测
             if (this.checkCollision(this.player, this.boss)) {
                 let damage = 30; // 普通接触伤害
@@ -754,13 +779,19 @@ class Game {
                 if (this.checkCollision(bullet, this.boss)) {
                     const damage = bullet.damage || 1;
                     
+                    // 为子弹生成唯一ID（如果没有）
+                    if (!bullet.id) {
+                        bullet.id = `bullet_${Date.now()}_${Math.random()}`;
+                    }
+                    
                     // 普通子弹失效，蓄力子弹可穿透
                     if (!bullet.penetrating) {
                         bullet.active = false;
                     }
                     
-                    // 对Boss造成伤害
-                    if (this.boss.hit(damage)) {
+                    // 对Boss造成伤害（穿透弹传入ID以启用冷却机制）
+                    const bulletId = bullet.penetrating ? bullet.id : null;
+                    if (this.boss.hit(damage, bulletId)) {
                         // Boss被摧毁
                         this.boss.defeated = true;
                         this.boss.active = false;
@@ -770,6 +801,57 @@ class Game {
                     this.createHitEffect(bullet.x, bullet.y);
                     this.audioManager.playHit();
                 }
+            });
+            
+            // 玩家子弹击中Boss的可摧毁导弹（C弹）
+            this.player.bullets.forEach(playerBullet => {
+                if (!playerBullet.active || playerBullet.isVisible === false) return;
+                
+                this.enemyBullets.forEach(enemyBullet => {
+                    if (!enemyBullet.active || !enemyBullet.isDestructible) return;
+                    
+                    // 检测碰撞（简单的圆形碰撞检测）
+                    const dx = playerBullet.x - enemyBullet.x;
+                    const dy = playerBullet.y - enemyBullet.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const collisionDistance = (playerBullet.size || 4) + (enemyBullet.size || 9);
+                    
+                    if (distance < collisionDistance) {
+                        // 玩家子弹击中Boss导弹
+                        const damage = playerBullet.damage || 1;
+                        
+                        // 普通子弹失效，蓄力子弹可穿透
+                        if (!playerBullet.penetrating) {
+                            playerBullet.active = false;
+                        }
+                        
+                        // 对导弹造成伤害
+                        enemyBullet.health -= damage;
+                        
+                        if (enemyBullet.health <= 0) {
+                            // 导弹被摧毁
+                            enemyBullet.active = false;
+                            
+                            // 爆炸特效（类似击杀敌机）
+                            this.createExplosion(enemyBullet.x, enemyBullet.y, '#FF6600', false);
+                            
+                            // 击杀音效（与击杀敌机相同）
+                            this.audioManager.playExplosion();
+                            
+                            // 30%概率掉落道具
+                            if (Math.random() < 0.3) {
+                                this.powerUps.push(new PowerUp(
+                                    enemyBullet.x - 15,
+                                    enemyBullet.y - 15
+                                ));
+                            }
+                        } else {
+                            // 导弹受损但未摧毁
+                            this.createHitEffect(enemyBullet.x, enemyBullet.y);
+                            this.audioManager.playHit();
+                        }
+                    }
+                });
             });
         }
 
@@ -808,15 +890,23 @@ class Game {
 
         // 绘制游戏对象
         this.enemies.forEach(enemy => enemy.draw(this.ctx));
-        if (this.boss) {
-            this.boss.draw(this.ctx); // 绘制Boss
+        
+        // Boss出场动画时在最上层绘制，否则正常绘制
+        if (this.boss && this.boss.entranceAnimation && !this.boss.entranceAnimation.active) {
+            this.boss.draw(this.ctx); // 正常Boss绘制（在玩家下方）
         }
+        
         this.enemyBullets.forEach(bullet => bullet.draw(this.ctx)); // 绘制敌机子弹
         
         this.powerUps.forEach(powerUp => powerUp.draw(this.ctx)); // 绘制道具
         this.player.draw(this.ctx);
         this.player.explosions.forEach(exp => exp.draw(this.ctx)); // 绘制爆炸范围
         this.particles.forEach(particle => particle.draw(this.ctx));
+        
+        // Boss出场动画时在最上层绘制（遮挡玩家和敌机）
+        if (this.boss && this.boss.entranceAnimation && this.boss.entranceAnimation.active) {
+            this.boss.draw(this.ctx); // 出场动画Boss绘制（在最上层）
+        }
         
         // 绘制弹药效果时间槽（在P槽左侧）
         this.drawAmmoGauge();
