@@ -282,6 +282,65 @@ class AudioManager {
         });
     }
 
+    // 播放BOSS出场飞过音效
+    playBossFlyby() {
+        if (!this.audioContext || this.muted) return;
+        
+        // 战斗机引擎声 - 低频轰鸣
+        const engine = this.audioContext.createOscillator();
+        const engineGain = this.audioContext.createGain();
+        const engineFilter = this.audioContext.createBiquadFilter();
+        
+        engine.type = 'sawtooth';
+        engine.frequency.setValueAtTime(60, this.audioContext.currentTime);
+        engine.frequency.linearRampToValueAtTime(100, this.audioContext.currentTime + 1.5);
+        engine.frequency.linearRampToValueAtTime(40, this.audioContext.currentTime + 3.0);
+        
+        engineFilter.type = 'lowpass';
+        engineFilter.frequency.setValueAtTime(300, this.audioContext.currentTime);
+        
+        // 音量由远及近再远（多普勒效果）
+        engineGain.gain.setValueAtTime(0.1, this.audioContext.currentTime);
+        engineGain.gain.linearRampToValueAtTime(0.6, this.audioContext.currentTime + 1.5);
+        engineGain.gain.linearRampToValueAtTime(0.05, this.audioContext.currentTime + 3.0);
+        
+        engine.connect(engineFilter);
+        engineFilter.connect(engineGain);
+        engineGain.connect(this.sfxGain);
+        
+        // 喷气声 - 噪音层
+        const bufferSize = this.audioContext.sampleRate * 3.0;
+        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        for (let i = 0; i < bufferSize; i++) {
+            const progress = i / bufferSize;
+            const envelope = Math.sin(progress * Math.PI); // 中间大两边小
+            data[i] = (Math.random() * 2 - 1) * envelope * 0.3;
+        }
+        
+        const jet = this.audioContext.createBufferSource();
+        const jetFilter = this.audioContext.createBiquadFilter();
+        const jetGain = this.audioContext.createGain();
+        
+        jet.buffer = buffer;
+        jetFilter.type = 'bandpass';
+        jetFilter.frequency.setValueAtTime(500, this.audioContext.currentTime);
+        jetFilter.Q.value = 2;
+        
+        jetGain.gain.setValueAtTime(0.4, this.audioContext.currentTime);
+        
+        jet.connect(jetFilter);
+        jetFilter.connect(jetGain);
+        jetGain.connect(this.sfxGain);
+        
+        // 启动音效
+        engine.start();
+        engine.stop(this.audioContext.currentTime + 3.0);
+        jet.start();
+        jet.stop(this.audioContext.currentTime + 3.0);
+    }
+
     // 播放闪电技能音效
     playLightning() {
         if (!this.audioContext || this.muted) return;
@@ -534,6 +593,282 @@ class AudioManager {
         }
     }
 
+    // BOSS战专属音乐 - 惊心动魄、战斗爆燃
+    playBossBattleMusic() {
+        if (!this.audioContext || this.muted || this.bgmPlaying) return;
+        
+        this.unlockAudio();
+        this.bgmPlaying = true;
+        
+        // BOSS战旋律 - 极快节奏、高度紧张
+        const melody = [
+            // A段 - 急促警报
+            { note: 659, duration: 0.12 },  // E5
+            { note: 784, duration: 0.12 },  // G5
+            { note: 880, duration: 0.12 },  // A5
+            { note: 1047, duration: 0.12 }, // C6
+            { note: 880, duration: 0.12 },  // A5
+            { note: 784, duration: 0.12 },  // G5
+            { note: 659, duration: 0.12 },  // E5
+            { note: 784, duration: 0.12 },  // G5
+            
+            // B段 - 疯狂冲刺
+            { note: 988, duration: 0.1 },   // B5
+            { note: 880, duration: 0.1 },   // A5
+            { note: 988, duration: 0.1 },   // B5
+            { note: 1047, duration: 0.15 }, // C6
+            { note: 1175, duration: 0.1 },  // D6
+            { note: 1047, duration: 0.1 },  // C6
+            { note: 988, duration: 0.15 },  // B5
+            { note: 880, duration: 0.1 },   // A5
+            
+            // C段 - 极限爆发
+            { note: 1319, duration: 0.08 }, // E6
+            { note: 1175, duration: 0.08 }, // D6
+            { note: 1047, duration: 0.08 }, // C6
+            { note: 988, duration: 0.08 },  // B5
+            { note: 880, duration: 0.08 },  // A5
+            { note: 784, duration: 0.08 },  // G5
+            { note: 880, duration: 0.12 },  // A5
+            { note: 1047, duration: 0.12 }, // C6
+            
+            // D段 - 紧张持续
+            { note: 784, duration: 0.1 },   // G5
+            { note: 880, duration: 0.1 },   // A5
+            { note: 988, duration: 0.1 },   // B5
+            { note: 880, duration: 0.1 },   // A5
+            { note: 784, duration: 0.1 },   // G5
+            { note: 659, duration: 0.15 },  // E5
+            { note: 784, duration: 0.15 },  // G5
+            { note: 880, duration: 0.2 },   // A5
+        ];
+        
+        // BOSS战低音 - 暴力脉动
+        const bass = [
+            { note: 165, duration: 0.2 },  // E2
+            { note: 165, duration: 0.2 },  // E2
+            { note: 131, duration: 0.2 },  // C2
+            { note: 131, duration: 0.2 },  // C2
+            { note: 147, duration: 0.2 },  // D2
+            { note: 147, duration: 0.2 },  // D2
+            { note: 110, duration: 0.2 },  // A1
+            { note: 110, duration: 0.2 },  // A1
+        ];
+        
+        this.playBossBattleMelodyLoop(melody, bass);
+    }
+    
+    // BOSS战音乐循环 - 特殊强化版本
+    playBossBattleMelodyLoop(melody, bass) {
+        if (!this.bgmPlaying) return;
+        
+        let time = 0;
+        const loopDuration = melody.reduce((sum, note) => sum + note.duration, 0);
+        
+        // 播放旋律 - 使用锯齿波和方波，制造刺耳紧张感
+        melody.forEach(({ note, duration }) => {
+            // 主音色 - 锯齿波（锐利、刺激）
+            const oscillator1 = this.audioContext.createOscillator();
+            const gainNode1 = this.audioContext.createGain();
+            
+            oscillator1.type = 'sawtooth';
+            oscillator1.frequency.setValueAtTime(note, this.audioContext.currentTime + time);
+            
+            // 强力的音量包络
+            gainNode1.gain.setValueAtTime(0, this.audioContext.currentTime + time);
+            gainNode1.gain.linearRampToValueAtTime(0.18, this.audioContext.currentTime + time + 0.02);
+            gainNode1.gain.exponentialRampToValueAtTime(0.12, this.audioContext.currentTime + time + duration * 0.5);
+            gainNode1.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + time + duration);
+            
+            oscillator1.connect(gainNode1);
+            gainNode1.connect(this.musicGain);
+            
+            oscillator1.start(this.audioContext.currentTime + time);
+            oscillator1.stop(this.audioContext.currentTime + time + duration);
+            
+            // 和声音色 - 方波（金属感）
+            const oscillator2 = this.audioContext.createOscillator();
+            const gainNode2 = this.audioContext.createGain();
+            
+            oscillator2.type = 'square';
+            oscillator2.frequency.setValueAtTime(note * 1.01, this.audioContext.currentTime + time); // 略微失谐
+            
+            gainNode2.gain.setValueAtTime(0, this.audioContext.currentTime + time);
+            gainNode2.gain.linearRampToValueAtTime(0.1, this.audioContext.currentTime + time + 0.02);
+            gainNode2.gain.exponentialRampToValueAtTime(0.05, this.audioContext.currentTime + time + duration * 0.6);
+            gainNode2.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + time + duration);
+            
+            oscillator2.connect(gainNode2);
+            gainNode2.connect(this.musicGain);
+            
+            oscillator2.start(this.audioContext.currentTime + time);
+            oscillator2.stop(this.audioContext.currentTime + time + duration);
+            
+            // 颤音层 - 增加紧张感
+            const vibrato = this.audioContext.createOscillator();
+            const vibratoGain = this.audioContext.createGain();
+            
+            vibrato.type = 'sine';
+            vibrato.frequency.setValueAtTime(note * 2, this.audioContext.currentTime + time);
+            
+            vibratoGain.gain.setValueAtTime(0, this.audioContext.currentTime + time);
+            vibratoGain.gain.linearRampToValueAtTime(0.06, this.audioContext.currentTime + time + 0.02);
+            vibratoGain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + time + duration);
+            
+            vibrato.connect(vibratoGain);
+            vibratoGain.connect(this.musicGain);
+            
+            vibrato.start(this.audioContext.currentTime + time);
+            vibrato.stop(this.audioContext.currentTime + time + duration);
+            
+            this.bgmOscillators.push(oscillator1, oscillator2, vibrato);
+            time += duration;
+        });
+        
+        // 播放低音 - 暴力重低音
+        let bassTime = 0;
+        bass.forEach(({ note, duration }) => {
+            const oscillator = this.audioContext.createOscillator();
+            const gainNode = this.audioContext.createGain();
+            const distortion = this.audioContext.createWaveShaper();
+            
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(note, this.audioContext.currentTime + bassTime);
+            
+            // 失真效果
+            const curve = new Float32Array(256);
+            for (let i = 0; i < 256; i++) {
+                const x = (i - 128) / 128;
+                curve[i] = Math.tanh(x * 2); // 轻微失真
+            }
+            distortion.curve = curve;
+            
+            // 强力低音包络
+            gainNode.gain.setValueAtTime(0, this.audioContext.currentTime + bassTime);
+            gainNode.gain.linearRampToValueAtTime(0.25, this.audioContext.currentTime + bassTime + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.15, this.audioContext.currentTime + bassTime + duration * 0.3);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + bassTime + duration);
+            
+            oscillator.connect(distortion);
+            distortion.connect(gainNode);
+            gainNode.connect(this.musicGain);
+            
+            oscillator.start(this.audioContext.currentTime + bassTime);
+            oscillator.stop(this.audioContext.currentTime + bassTime + duration);
+            
+            this.bgmOscillators.push(oscillator);
+            bassTime += duration;
+        });
+        
+        // 添加战斗打击乐 - 更加密集
+        this.addBossBattlePercussion(loopDuration);
+        
+        // 添加紧张气氛层
+        this.addTensionLayer(loopDuration);
+        
+        // 循环播放
+        this.bgmLoopTimeout = setTimeout(() => {
+            if (this.bgmPlaying) {
+                this.playBossBattleMelodyLoop(melody, bass);
+            }
+        }, loopDuration * 1000);
+    }
+    
+    // 添加BOSS战打击乐 - 超密集节奏
+    addBossBattlePercussion(loopDuration) {
+        const beatInterval = 0.1; // 每0.1秒一个节拍（双倍密度）
+        const numBeats = Math.floor(loopDuration / beatInterval);
+        
+        for (let i = 0; i < numBeats; i++) {
+            const time = i * beatInterval;
+            
+            // 强力军鼓
+            const bufferSize = this.audioContext.sampleRate * 0.04;
+            const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+            const data = buffer.getChannelData(0);
+            
+            for (let j = 0; j < bufferSize; j++) {
+                data[j] = (Math.random() * 2 - 1) * Math.exp(-j / bufferSize * 8);
+            }
+            
+            const noise = this.audioContext.createBufferSource();
+            const noiseGain = this.audioContext.createGain();
+            const filter = this.audioContext.createBiquadFilter();
+            
+            noise.buffer = buffer;
+            filter.type = 'highpass';
+            filter.frequency.value = 1500;
+            
+            // 强拍和弱拍
+            const isStrongBeat = i % 4 === 0;
+            const isAccent = i % 8 === 0;
+            const volume = isAccent ? 0.25 : (isStrongBeat ? 0.18 : 0.1);
+            
+            noiseGain.gain.setValueAtTime(volume, this.audioContext.currentTime + time);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + time + 0.04);
+            
+            noise.connect(filter);
+            filter.connect(noiseGain);
+            noiseGain.connect(this.musicGain);
+            
+            noise.start(this.audioContext.currentTime + time);
+            noise.stop(this.audioContext.currentTime + time + 0.04);
+            
+            // 底鼓 - 每4拍一次
+            if (i % 4 === 0) {
+                const kick = this.audioContext.createOscillator();
+                const kickGain = this.audioContext.createGain();
+                
+                kick.type = 'sine';
+                kick.frequency.setValueAtTime(80, this.audioContext.currentTime + time);
+                kick.frequency.exponentialRampToValueAtTime(30, this.audioContext.currentTime + time + 0.08);
+                
+                kickGain.gain.setValueAtTime(0.3, this.audioContext.currentTime + time);
+                kickGain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + time + 0.08);
+                
+                kick.connect(kickGain);
+                kickGain.connect(this.musicGain);
+                
+                kick.start(this.audioContext.currentTime + time);
+                kick.stop(this.audioContext.currentTime + time + 0.08);
+            }
+        }
+    }
+    
+    // 添加紧张气氛层
+    addTensionLayer(loopDuration) {
+        // 持续的紧张底噪
+        const bufferSize = this.audioContext.sampleRate * loopDuration;
+        const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        for (let i = 0; i < bufferSize; i++) {
+            // 低频脉动噪音
+            const pulse = Math.sin(i / this.audioContext.sampleRate * 8 * Math.PI);
+            data[i] = (Math.random() * 2 - 1) * pulse * 0.1;
+        }
+        
+        const tension = this.audioContext.createBufferSource();
+        const tensionFilter = this.audioContext.createBiquadFilter();
+        const tensionGain = this.audioContext.createGain();
+        
+        tension.buffer = buffer;
+        tensionFilter.type = 'lowpass';
+        tensionFilter.frequency.setValueAtTime(200, this.audioContext.currentTime);
+        tensionFilter.Q.value = 5;
+        
+        tensionGain.gain.setValueAtTime(0.15, this.audioContext.currentTime);
+        
+        tension.connect(tensionFilter);
+        tensionFilter.connect(tensionGain);
+        tensionGain.connect(this.musicGain);
+        
+        tension.start(this.audioContext.currentTime);
+        tension.stop(this.audioContext.currentTime + loopDuration);
+        
+        this.bgmOscillators.push(tension);
+    }
+    
     // 停止背景音乐
     stopBackgroundMusic() {
         this.bgmPlaying = false;

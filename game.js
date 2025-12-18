@@ -428,6 +428,12 @@ class Game {
         if (!this.firstBossSpawned && this.bossSpawnTimer >= this.bossSpawnInterval && !this.boss) {
             this.boss = new Boss(this.canvas, this.difficulty);
             this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
+            this.audioManager.playBossFlyby(); // BOSS飞过音效
+            
+            // 切换到BOSS战音乐
+            this.audioManager.stopBackgroundMusic();
+            this.audioManager.playBossBattleMusic();
+            
             this.firstBossSpawned = true;
             this.bossSpawnTimer = 0;
             this.bossSpawnInterval = 1800; // 之后每30秒可能出现一次
@@ -438,6 +444,11 @@ class Game {
             if (Math.random() < bossChance) {
                 this.boss = new Boss(this.canvas, this.difficulty);
                 this.boss.startEntranceAnimation(this.enemies); // 启动出场动画
+                this.audioManager.playBossFlyby(); // BOSS飞过音效
+                
+                // 切换到BOSS战音乐
+                this.audioManager.stopBackgroundMusic();
+                this.audioManager.playBossBattleMusic();
                 
                 // Boss出现时掉落2-4个道具帮助玩家
                 const powerUpCount = 2 + Math.floor(Math.random() * 3);
@@ -483,6 +494,10 @@ class Game {
                     }
                 }
                 this.boss = null;
+                
+                // BOSS战结束，切换回普通BGM
+                this.audioManager.stopBackgroundMusic();
+                this.audioManager.playBackgroundMusic();
             }
         }
         

@@ -80,7 +80,7 @@ class Boss {
             scale: 1.8, // 初始放大2倍
             x: canvas.width / 2 - (this.width * 2) / 2, // 在屏幕中央
             y: -this.height * 2, // 从屏幕上方开始
-            speedY: 13, // 纵向飞行速度（从36减回到18）
+            speedY: 9, // 纵向飞行速度（从36减回到18）
             shootTimer: 0,
             shootInterval: 3, // 每3帧发射一次（加快射击频率）
             enemiesToClear: [] // 需要清除的敌机列表
